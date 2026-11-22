@@ -1,0 +1,2205 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نُورُ الْقِرَاءَةِ — Noor Al-Qira'a</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Noto Naskh Arabic & Nunito -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Nunito', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .arabic-text {
+      font-family: 'Noto Naskh Arabic', serif;
+      direction: rtl;
+      unicode-bidi: isolate;
+      letter-spacing: 0 !important;
+      line-height: 2.05;
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.94); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop { animation: popIn 0.22s ease-out; }
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+    .animate-float { animation: floatSlow 3.2s ease-in-out infinite; }
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.45); }
+      70% { box-shadow: 0 0 0 12px rgba(168, 85, 247, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+    }
+    .speaking-pulse { animation: pulseRing 1.1s infinite; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-violet-50 via-pink-50/70 to-sky-50 text-slate-800 flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header id="app-header" class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-purple-100 shadow-sm"></header>
+
+  <!-- Live Audio Status Toast (shows what is currently being pronounced) -->
+  <div id="audio-toast" class="fixed bottom-4 right-4 z-40 hidden items-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-700 text-white font-bold shadow-lg text-sm">
+    <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-300 animate-ping"></span>
+    <span id="audio-toast-text" class="arabic-text text-lg leading-none"></span>
+  </div>
+
+  <!-- Main View Container -->
+  <main id="app-main" class="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-7"></main>
+
+  <!-- Modal Root (Remediation, Badges, Audio Settings) -->
+  <div id="modal-root"></div>
+
+  <script>
+    /* ============================================================================
+       1. CURRICULUM DATA (ARABIC FULLY VOWELIZED + SIMPLIFIED FRENCH)
+       ============================================================================ */
+
+    const LETTER_GROUPS = [
+      {
+        id: 'g_ba',
+        titleAr: 'عَائِلَةُ الْبَاءِ',
+        titleFr: 'La famille du Ba (Points)',
+        color: 'from-pink-100 to-rose-100 border-pink-300',
+        letters: ['ب', 'ت', 'ث'],
+        tipFr: 'Même forme de bateau ! Regarde bien où sont les points.',
+        tipAr: 'نَفْسُ الشَّكْلِ! انْظُرِي إِلَى مَكَانِ النُّقَاطِ.'
+      },
+      {
+        id: 'g_ja',
+        titleAr: 'عَائِلَةُ الْجِيمِ',
+        titleFr: 'La famille du Jim',
+        color: 'from-purple-100 to-violet-100 border-purple-300',
+        letters: ['ج', 'ح', 'خ'],
+        tipFr: 'Un point au ventre, zéro point, ou un point sur la tête !',
+        tipAr: 'نُقْطَةٌ فِي الْبَطْنِ، أَوْ بِلَا نُقَاطٍ، أَوْ فَوْقَ الرَّأْسِ!'
+      },
+      {
+        id: 'g_da',
+        titleAr: 'الدَّالُ وَالذَّالُ',
+        titleFr: 'Dal et Dhal',
+        color: 'from-sky-100 to-blue-100 border-sky-300',
+        letters: ['د', 'ذ'],
+        tipFr: 'د sans point, ذ avec un chapeau (1 point en haut).',
+        tipAr: 'د بِلَا نُقْطَةٍ، وَ ذ بِـنُقْطَةٍ فَوْقَهَا.'
+      },
+      {
+        id: 'g_ra',
+        titleAr: 'الرَّاءُ وَالزَّايُ',
+        titleFr: 'Ra et Zay',
+        color: 'from-emerald-100 to-teal-100 border-emerald-300',
+        letters: ['ر', 'ز'],
+        tipFr: 'ر glisse sans point, ز a un point en haut (son Zzzz).',
+        tipAr: 'ر بِلَا نُقْطَةٍ، وَ ز لَهَا نُقْطَةٌ فَوْقَهَا.'
+      },
+      {
+        id: 'g_sa',
+        titleAr: 'السِّينُ وَالشِّينُ',
+        titleFr: 'Sin et Chin',
+        color: 'from-amber-100 to-yellow-100 border-amber-300',
+        letters: ['س', 'ش'],
+        tipFr: 'س a 3 dents sans points, ش a 3 points en haut (Chhh !).',
+        tipAr: 'س بِلَا نُقَاطٍ، وَ ش لَهَا ثَلَاثُ نُقَاطٍ فَوْقَهَا.'
+      },
+      {
+        id: 'g_sad',
+        titleAr: 'الصَّادُ وَالضَّادُ',
+        titleFr: 'Sad et Dad',
+        color: 'from-indigo-100 to-blue-100 border-indigo-300',
+        letters: ['ص', 'ض'],
+        tipFr: 'ص sans point, ض avec 1 point en haut.',
+        tipAr: 'ص بِلَا نُقَاطٍ، وَ ض بِـنُقْطَةٍ فَوْقَهَا.'
+      },
+      {
+        id: 'g_ta',
+        titleAr: 'الطَّاءُ وَالظَّاءُ',
+        titleFr: 'Ta et Dha',
+        color: 'from-rose-100 to-orange-100 border-rose-300',
+        letters: ['ط', 'ظ'],
+        tipFr: 'ط sans point, ظ avec 1 point en haut.',
+        tipAr: 'ط بِلَا نُقَاطٍ، وَ ظ بِـنُقْطَةٍ فَوْقَهَا.'
+      },
+      {
+        id: 'g_ayn',
+        titleAr: 'الْعَيْنُ وَالْغَيْنُ',
+        titleFr: 'Ayn et Ghayn',
+        color: 'from-fuchsia-100 to-pink-100 border-fuchsia-300',
+        letters: ['ع', 'غ'],
+        tipFr: 'ع sans point, غ avec 1 point en haut.',
+        tipAr: 'ع بِلَا نُقَاطٍ، وَ غ بِـنُقْطَةٍ فَوْقَهَا.'
+      },
+      {
+        id: 'g_fa',
+        titleAr: 'الْفَاءُ وَالْقَافُ',
+        titleFr: 'Fa et Qaf',
+        color: 'from-cyan-100 to-sky-100 border-cyan-300',
+        letters: ['ف', 'ق'],
+        tipFr: 'ف a 1 point en haut, ق a 2 points en haut !',
+        tipAr: 'ف لَهَا نُقْطَةٌ وَاحِدَةٌ، وَ ق لَهَا نُقْطَتَانِ!'
+      },
+      {
+        id: 'g_other',
+        titleAr: 'بَاقِي الْحُرُوفِ',
+        titleFr: 'Autres lettres amies',
+        color: 'from-violet-100 to-purple-100 border-violet-300',
+        letters: ['أ', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'],
+        tipFr: 'Découvre toutes les autres lettres de l’alphabet !',
+        tipAr: 'تَعَرَّفِي عَلَى بَاقِي الْحُرُوفِ الْجَمِيلَةِ!'
+      }
+    ];
+
+    const LETTERS_DATA = {
+      'ب': { char: 'ب', base: 'ٮ', nameAr: 'بَاء', nameFr: 'Ba', sound: 'بَ', soundFr: 'ba', dots: 1, dotPos: 'below', dotDescFr: '1 point en bas', dotDescAr: 'نُقْطَةٌ وَاحِدَةٌ تَحْتَ الْحَرْفِ', wordId: 'bab', group: 'g_ba' },
+      'ت': { char: 'ت', base: 'ٮ', nameAr: 'تَاء', nameFr: 'Ta', sound: 'تَ', soundFr: 'ta', dots: 2, dotPos: 'above', dotDescFr: '2 points en haut', dotDescAr: 'نُقْطَتَانِ فَوْقَ الْحَرْفِ', wordId: 'tuffaha', group: 'g_ba' },
+      'ث': { char: 'ث', base: 'ٮ', nameAr: 'ثَاء', nameFr: 'Tha', sound: 'ثَ', soundFr: 'tha', dots: 3, dotPos: 'above', dotDescFr: '3 points en haut', dotDescAr: 'ثَلَاثُ نُقَاطٍ فَوْقَ الْحَرْفِ', wordId: 'thalj', group: 'g_ba' },
+      'ج': { char: 'ج', base: 'ح', nameAr: 'جِيم', nameFr: 'Jim', sound: 'جَ', soundFr: 'ja', dots: 1, dotPos: 'inside', dotDescFr: '1 point au milieu', dotDescAr: 'نُقْطَةٌ وَاحِدَةٌ فِي الْوَسَطِ', wordId: 'jamal', group: 'g_ja' },
+      'ح': { char: 'ح', base: 'ح', nameAr: 'حَاء', nameFr: 'Ha', sound: 'حَ', soundFr: 'ha', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'halib', group: 'g_ja' },
+      'خ': { char: 'خ', base: 'ح', nameAr: 'خَاء', nameFr: 'Kha', sound: 'خَ', soundFr: 'kha', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ وَاحِدَةٌ فَوْقَ الْحَرْفِ', wordId: 'khubz', group: 'g_ja' },
+      'د': { char: 'د', base: 'د', nameAr: 'دَال', nameFr: 'Dal', sound: 'دَ', soundFr: 'da', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'dubb', group: 'g_da' },
+      'ذ': { char: 'ذ', base: 'د', nameAr: 'ذَال', nameFr: 'Dhal', sound: 'ذَ', soundFr: 'dha', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ فَوْقَ الْحَرْفِ', wordId: 'dhura', group: 'g_da' },
+      'ر': { char: 'ر', base: 'ر', nameAr: 'رَاء', nameFr: 'Ra', sound: 'رَ', soundFr: 'ra', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'rumman', group: 'g_ra' },
+      'ز': { char: 'ز', base: 'ر', nameAr: 'زَاي', nameFr: 'Zay', sound: 'زَ', soundFr: 'za', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ فَوْقَ الْحَرْفِ', wordId: 'zahra', group: 'g_ra' },
+      'س': { char: 'س', base: 'س', nameAr: 'سِين', nameFr: 'Sin', sound: 'سَ', soundFr: 'sa', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'samaka', group: 'g_sa' },
+      'ش': { char: 'ش', base: 'س', nameAr: 'شِين', nameFr: 'Chin', sound: 'شَ', soundFr: 'cha', dots: 3, dotPos: 'above', dotDescFr: '3 points en haut', dotDescAr: 'ثَلَاثُ نُقَاطٍ فَوْقَ الْحَرْفِ', wordId: 'shams', group: 'g_sa' },
+      'ص': { char: 'ص', base: 'ص', nameAr: 'صَاد', nameFr: 'Sad', sound: 'صَ', soundFr: 'sa (fort)', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'sahn', group: 'g_sad' },
+      'ض': { char: 'ض', base: 'ص', nameAr: 'ضَاد', nameFr: 'Dad', sound: 'ضَ', soundFr: 'da (fort)', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ فَوْقَ الْحَرْفِ', wordId: 'difda', group: 'g_sad' },
+      'ط': { char: 'ط', base: 'ط', nameAr: 'طَاء', nameFr: 'Ta (fort)', sound: 'طَ', soundFr: 'ta (fort)', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'tair', group: 'g_ta' },
+      'ظ': { char: 'ظ', base: 'ط', nameAr: 'ظَاء', nameFr: 'Dha (fort)', sound: 'ظَ', soundFr: 'dha (fort)', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ فَوْقَ الْحَرْفِ', wordId: 'zarf', group: 'g_ta' },
+      'ع': { char: 'ع', base: 'ع', nameAr: 'عَيْن', nameFr: 'Ayn', sound: 'عَ', soundFr: 'aa', dots: 0, dotPos: 'none', dotDescFr: 'Aucun point', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'inab', group: 'g_ayn' },
+      'غ': { char: 'غ', base: 'ع', nameAr: 'غَيْن', nameFr: 'Ghayn', sound: 'غَ', soundFr: 'gha', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ فَوْقَ الْحَرْفِ', wordId: 'ghayma', group: 'g_ayn' },
+      'ف': { char: 'ف', base: 'ڡ', nameAr: 'فَاء', nameFr: 'Fa', sound: 'فَ', soundFr: 'fa', dots: 1, dotPos: 'above', dotDescFr: '1 point en haut', dotDescAr: 'نُقْطَةٌ وَاحِدَةٌ فَوْقَ الْحَرْفِ', wordId: 'farasha', group: 'g_fa' },
+      'ق': { char: 'ق', base: 'ٯ', nameAr: 'قَاف', nameFr: 'Qaf', sound: 'قَ', soundFr: 'qa', dots: 2, dotPos: 'above', dotDescFr: '2 points en haut', dotDescAr: 'نُقْطَتَانِ فَوْقَ الْحَرْفِ', wordId: 'qalam', group: 'g_fa' },
+      'أ': { char: 'أ', base: 'ا', nameAr: 'أَلِف', nameFr: 'Alif', sound: 'أَ', soundFr: 'a', dots: 0, dotPos: 'none', dotDescFr: 'Hamza en haut', dotDescAr: 'هَمْزَةٌ فَوْقَ الْأَلِفِ', wordId: 'arnab', group: 'g_other' },
+      'ك': { char: 'ك', base: 'ك', nameAr: 'كَاف', nameFr: 'Kaf', sound: 'كَ', soundFr: 'ka', dots: 0, dotPos: 'none', dotDescFr: 'Sans points', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'kitab', group: 'g_other' },
+      'ل': { char: 'ل', base: 'ل', nameAr: 'لَام', nameFr: 'Lam', sound: 'لَ', soundFr: 'la', dots: 0, dotPos: 'none', dotDescFr: 'Sans points', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'laymun', group: 'g_other' },
+      'م': { char: 'م', base: 'م', nameAr: 'مِيم', nameFr: 'Mim', sound: 'مَ', soundFr: 'ma', dots: 0, dotPos: 'none', dotDescFr: 'Sans points', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'mawz', group: 'g_other' },
+      'ن': { char: 'ن', base: 'ں', nameAr: 'نُون', nameFr: 'Noun', sound: 'نَ', soundFr: 'na', dots: 1, dotPos: 'above', dotDescFr: '1 point dans le bol', dotDescAr: 'نُقْطَةٌ وَاحِدَةٌ فَوْقَ الْحَرْفِ', wordId: 'najma', group: 'g_other' },
+      'ه': { char: 'ه', base: 'ه', nameAr: 'هَاء', nameFr: 'Ha (doux)', sound: 'هَ', soundFr: 'ha', dots: 0, dotPos: 'none', dotDescFr: 'Sans points', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'hilal', group: 'g_other' },
+      'و': { char: 'و', base: 'و', nameAr: 'وَاو', nameFr: 'Waw', sound: 'وَ', soundFr: 'wa', dots: 0, dotPos: 'none', dotDescFr: 'Sans points', dotDescAr: 'بِلَا نُقَاطٍ', wordId: 'walad', group: 'g_other' },
+      'ي': { char: 'ي', base: 'ى', nameAr: 'يَاء', nameFr: 'Ya', sound: 'يَ', soundFr: 'ya', dots: 2, dotPos: 'below', dotDescFr: '2 points en bas', dotDescAr: 'نُقْطَتَانِ تَحْتَ الْحَرْفِ', wordId: 'yad', group: 'g_other' }
+    };
+
+    const HARAKAT_DATA = [
+      { id: 'fatha', mark: '\u064E', display: 'ـَ', nameAr: 'الْفَتْحَة', nameFr: 'Fatha (son « a »)', positionFr: 'En haut de la lettre', color: 'text-rose-500', bg: 'bg-rose-100 border-rose-300', pill: 'bg-rose-500', type: 'short' },
+      { id: 'damma', mark: '\u064F', display: 'ـُ', nameAr: 'الضَّمَّة', nameFr: 'Damma (son « ou »)', positionFr: 'En haut (petite boucle)', color: 'text-sky-600', bg: 'bg-sky-100 border-sky-300', pill: 'bg-sky-500', type: 'short' },
+      { id: 'kasra', mark: '\u0650', display: 'ـِ', nameAr: 'الْكَسْرَة', nameFr: 'Kasra (son « i »)', positionFr: 'En bas de la lettre', color: 'text-emerald-600', bg: 'bg-emerald-100 border-emerald-300', pill: 'bg-emerald-500', type: 'short' },
+      { id: 'sukun', mark: '\u0652', display: 'ـْ', nameAr: 'السُّكُون', nameFr: 'Sukun (pause)', positionFr: 'Petit rond en haut', color: 'text-amber-600', bg: 'bg-amber-100 border-amber-300', pill: 'bg-amber-500', type: 'short' },
+      { id: 'madd_a', mark: '\u064E\u0627', display: 'ـَا', nameAr: 'مَدٌّ بِالْأَلِفِ', nameFr: 'Long « aaa »', positionFr: 'Fatha + Alif', color: 'text-pink-600', bg: 'bg-pink-100 border-pink-300', pill: 'bg-pink-500', type: 'long' },
+      { id: 'madd_u', mark: '\u064F\u0648', display: 'ـُو', nameAr: 'مَدٌّ بِالْوَاوِ', nameFr: 'Long « ouuu »', positionFr: 'Damma + Waw', color: 'text-blue-600', bg: 'bg-blue-100 border-blue-300', pill: 'bg-blue-500', type: 'long' },
+      { id: 'madd_i', mark: '\u0650\u064A', display: 'ـِي', nameAr: 'مَدٌّ بِالْيَاءِ', nameFr: 'Long « iii »', positionFr: 'Kasra + Ya', color: 'text-teal-600', bg: 'bg-teal-100 border-teal-300', pill: 'bg-teal-500', type: 'long' }
+    ];
+
+    const SYLLABLE_CONSONANTS = ['ب', 'م', 'س', 'ت', 'ل', 'د', 'ر', 'ن', 'ك', 'ف', 'ق'];
+
+    const VOCABULARY = [
+      { id: 'bab', ar: 'بَابٌ', fr: 'Porte', letter: 'ب', syllables: ['بَا', 'بٌ'], core: true },
+      { id: 'bayt', ar: 'بَيْتٌ', fr: 'Maison', letter: 'ب', syllables: ['بَيْ', 'تٌ'], core: true },
+      { id: 'bint', ar: 'بِنْتٌ', fr: 'Fille', letter: 'ب', syllables: ['بِنْ', 'تٌ'], core: true },
+      { id: 'walad', ar: 'وَلَدٌ', fr: 'Garçon', letter: 'و', syllables: ['وَ', 'لَ', 'دٌ'], core: true },
+      { id: 'qalam', ar: 'قَلَمٌ', fr: 'Stylo', letter: 'ق', syllables: ['قَ', 'لَ', 'مٌ'], core: true },
+      { id: 'kitab', ar: 'كِتَابٌ', fr: 'Livre', letter: 'ك', syllables: ['كِ', 'تَا', 'بٌ'], core: true },
+      { id: 'mawz', ar: 'مَوْزٌ', fr: 'Banane', letter: 'م', syllables: ['مَوْ', 'زٌ'], core: true },
+      { id: 'tuffaha', ar: 'تُفَّاحَةٌ', fr: 'Pomme', letter: 'ت', syllables: ['تُفَّ', 'احَ', 'ةٌ'], core: true },
+      { id: 'qitta', ar: 'قِطَّةٌ', fr: 'Chat', letter: 'ق', syllables: ['قِطَّ', 'ةٌ'], core: true },
+      { id: 'kalb', ar: 'كَلْبٌ', fr: 'Chien', letter: 'ك', syllables: ['كَلْ', 'بٌ'], core: true },
+      { id: 'shams', ar: 'شَمْسٌ', fr: 'Soleil', letter: 'ش', syllables: ['شَمْ', 'سٌ'], core: true },
+      { id: 'qamar', ar: 'قَمَرٌ', fr: 'Lune', letter: 'ق', syllables: ['قَ', 'مَ', 'رٌ'], core: true },
+      { id: 'samaka', ar: 'سَمَكَةٌ', fr: 'Poisson', letter: 'س', syllables: ['سَ', 'مَ', 'كَ', 'ةٌ'], core: true },
+      { id: 'zahra', ar: 'زَهْرَةٌ', fr: 'Fleur', letter: 'ز', syllables: ['زَهْ', 'رَ', 'ةٌ'], core: true },
+      { id: 'halib', ar: 'حَلِيبٌ', fr: 'Lait', letter: 'ح', syllables: ['حَ', 'لِي', 'بٌ'], core: true },
+      { id: 'najma', ar: 'نَجْمَةٌ', fr: 'Étoile', letter: 'ن', syllables: ['نَجْ', 'مَ', 'ةٌ'], core: true },
+      { id: 'thalj', ar: 'ثَلْجٌ', fr: 'Neige', letter: 'ث', syllables: ['ثَلْ', 'جٌ'], core: false },
+      { id: 'jamal', ar: 'جَمَلٌ', fr: 'Chameau', letter: 'ج', syllables: ['جَ', 'مَ', 'لٌ'], core: false },
+      { id: 'khubz', ar: 'خُبْزٌ', fr: 'Pain', letter: 'خ', syllables: ['خُبْ', 'زٌ'], core: false },
+      { id: 'dubb', ar: 'دُبٌّ', fr: 'Ours', letter: 'د', syllables: ['دُبٌّ'], core: false },
+      { id: 'dhura', ar: 'ذُرَةٌ', fr: 'Maïs', letter: 'ذ', syllables: ['ذُ', 'رَ', 'ةٌ'], core: false },
+      { id: 'rumman', ar: 'رُمَّانٌ', fr: 'Grenade', letter: 'ر', syllables: ['رُمَّ', 'انٌ'], core: false },
+      { id: 'sahn', ar: 'صَحْنٌ', fr: 'Assiette', letter: 'ص', syllables: ['صَحْ', 'نٌ'], core: false },
+      { id: 'difda', ar: 'ضِفْدَعٌ', fr: 'Grenouille', letter: 'ض', syllables: ['ضِفْ', 'دَ', 'عٌ'], core: false },
+      { id: 'tair', ar: 'طَائِرٌ', fr: 'Oiseau', letter: 'ط', syllables: ['طَا', 'ئِ', 'رٌ'], core: false },
+      { id: 'zarf', ar: 'ظَرْفٌ', fr: 'Enveloppe', letter: 'ظ', syllables: ['ظَرْ', 'فٌ'], core: false },
+      { id: 'inab', ar: 'عِنَبٌ', fr: 'Raisin', letter: 'ع', syllables: ['عِ', 'نَ', 'بٌ'], core: false },
+      { id: 'ghayma', ar: 'غَيْمَةٌ', fr: 'Nuage', letter: 'غ', syllables: ['غَيْ', 'مَ', 'ةٌ'], core: false },
+      { id: 'farasha', ar: 'فَرَاشَةٌ', fr: 'Papillon', letter: 'ف', syllables: ['فَ', 'رَا', 'شَ', 'ةٌ'], core: false },
+      { id: 'arnab', ar: 'أَرْنَبٌ', fr: 'Lapin', letter: 'أ', syllables: ['أَرْ', 'نَ', 'بٌ'], core: false },
+      { id: 'laymun', ar: 'لَيْمُونٌ', fr: 'Citron', letter: 'ل', syllables: ['لَيْ', 'مُو', 'نٌ'], core: false },
+      { id: 'hilal', ar: 'هِلَالٌ', fr: 'Croissant', letter: 'ه', syllables: ['هِ', 'لَا', 'لٌ'], core: false },
+      { id: 'yad', ar: 'يَدٌ', fr: 'Main', letter: 'ي', syllables: ['يَ', 'دٌ'], core: false }
+    ];
+
+    const SENTENCES_DATA = [
+      { id: 's1', ar: 'هَذَا بَابٌ.', words: ['هَذَا', 'بَابٌ'], fr: 'Voici une porte.', visualId: 'bab', missingWordIdx: 1, distractors: ['كِتَابٌ', 'قَلَمٌ'] },
+      { id: 's2', ar: 'هَذِهِ قِطَّةٌ.', words: ['هَذِهِ', 'قِطَّةٌ'], fr: 'Voici un chat.', visualId: 'qitta', missingWordIdx: 1, distractors: ['شَمْسٌ', 'مَوْزٌ'] },
+      { id: 's3', ar: 'هَذَا كِتَابٌ.', words: ['هَذَا', 'كِتَابٌ'], fr: 'Voici un livre.', visualId: 'kitab', missingWordIdx: 1, distractors: ['بَيْتٌ', 'كَلْبٌ'] },
+      { id: 's4', ar: 'الْبِنْتُ تَقْرَأُ.', words: ['الْبِنْتُ', 'تَقْرَأُ'], fr: 'La fille lit.', visualId: 'bint_reads', missingWordIdx: 1, distractors: ['بَابٌ', 'قَمَرٌ'] },
+      { id: 's5', ar: 'الْوَلَدُ يَلْعَبُ.', words: ['الْوَلَدُ', 'يَلْعَبُ'], fr: 'Le garçon joue.', visualId: 'walad_plays', missingWordIdx: 1, distractors: ['تُفَّاحَةٌ', 'قَلَمٌ'] },
+      { id: 's6', ar: 'أَنَا أُحِبُّ الْقِطَّةَ.', words: ['أَنَا', 'أُحِبُّ', 'الْقِطَّةَ'], fr: "J'aime le chat.", visualId: 'qitta', missingWordIdx: 2, distractors: ['الْبَابَ', 'الْقَلَمَ'] }
+    ];
+
+    const PRAISE_MESSAGES = [
+      { fr: 'Bravo ! Tu as réussi !', ar: 'مُمْتَازٌ! أَحْسَنْتِ!' },
+      { fr: 'Super championne !', ar: 'رَائِعٌ جِدًّا!' },
+      { fr: 'Magnifique ! Continue !', ar: 'أَنْتِ ذَكِيَّةٌ جِدًّا!' },
+      { fr: 'Génial ! Tu progresses vite !', ar: 'بَارَكَ اللَّهُ فِيكِ!' }
+    ];
+
+    const ENCOURAGE_MESSAGES = [
+      { fr: 'Pas de souci ! Essaie encore !', ar: 'لَا بَأْسَ، حَاوِلِي مَرَّةً أُخْرَى!' },
+      { fr: 'Tu es presque là ! Regarde bien.', ar: 'اقْتَرَبْتِ! انْظُرِي جَيِّدًا.' },
+      { fr: 'Très bon essai ! On réessaie ensemble.', ar: 'مُحَاوَلَةٌ جَمِيلَةٌ! لِنُجَرِّبْ مَعًا.' }
+    ];
+
+    /* ============================================================================
+       2. ROBUST MULTI-LAYER ARABIC AUDIO ENGINE (FIXES ALL "ÉCOUTER" BUTTONS)
+       ============================================================================ */
+
+    const AudioEngine = {
+      rate: 0.80,
+      currentAudio: null,
+      audioCtx: null,
+      voices: [],
+      toastTimer: null,
+
+      init() {
+        if ('speechSynthesis' in window) {
+          const load = () => { this.voices = window.speechSynthesis.getVoices() || []; };
+          load();
+          window.speechSynthesis.onvoiceschanged = load;
+        }
+      },
+
+      getArabicVoice() {
+        if (!this.voices.length && 'speechSynthesis' in window) {
+          this.voices = window.speechSynthesis.getVoices() || [];
+        }
+        return (
+          this.voices.find(v => v.lang.toLowerCase().startsWith('ar-sa')) ||
+          this.voices.find(v => v.lang.toLowerCase().startsWith('ar-eg')) ||
+          this.voices.find(v => v.lang.toLowerCase().startsWith('ar')) ||
+          null
+        );
+      },
+
+      showToast(text) {
+        const toast = document.getElementById('audio-toast');
+        const label = document.getElementById('audio-toast-text');
+        if (!toast || !label) return;
+        label.textContent = text;
+        toast.classList.remove('hidden');
+        toast.classList.add('flex');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => {
+          toast.classList.add('hidden');
+          toast.classList.remove('flex');
+        }, 2200);
+      },
+
+      // Normalize short syllables so Arabic TTS engines pronounce the vowel clearly
+      prepareText(rawText) {
+        if (!rawText) return '';
+        const t = String(rawText).trim();
+        // Sukun on a single letter (e.g., بْ) is easier to hear as "أَبْ"
+        if (t.length === 2 && t.endsWith('\u0652')) {
+          return 'أَ' + t;
+        }
+        return t;
+      },
+
+      stopAll() {
+        if (this.currentAudio) {
+          try {
+            this.currentAudio.pause();
+            this.currentAudio.currentTime = 0;
+          } catch (e) {}
+          this.currentAudio = null;
+        }
+        if ('speechSynthesis' in window) {
+          try { window.speechSynthesis.cancel(); } catch (e) {}
+        }
+      },
+
+      // Primary reliable playback: tries Online Arabic TTS MP3 first (works even without OS Arabic voices),
+      // and seamlessly falls back to browser Web Speech API if offline or blocked.
+      speak(rawText) {
+        const text = this.prepareText(rawText);
+        if (!text) return;
+        this.stopAll();
+        this.showToast(rawText);
+
+        // Layer 1: Direct Arabic TTS Audio Stream (works on Windows/Mac/iOS/Android even with no local Arabic pack)
+        const ttsUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=ar&client=gtx&q=${encodeURIComponent(text)}`;
+        const audio = new Audio(ttsUrl);
+        audio.playbackRate = this.rate < 0.85 ? 0.82 : 1.0;
+        this.currentAudio = audio;
+
+        let fellBack = false;
+        const fallbackToWebSpeech = () => {
+          if (fellBack) return;
+          fellBack = true;
+          this.speakWithBrowserTTS(text);
+        };
+
+        audio.onerror = fallbackToWebSpeech;
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(fallbackToWebSpeech);
+        }
+      },
+
+      // Layer 2: Browser Web Speech API with Chrome cancel/resume bug workaround
+      speakWithBrowserTTS(text) {
+        if (!('speechSynthesis' in window)) return;
+        try {
+          window.speechSynthesis.cancel();
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          const utter = new SpeechSynthesisUtterance(text);
+          const arVoice = this.getArabicVoice();
+          utter.lang = arVoice ? arVoice.lang : 'ar-SA';
+          if (arVoice) utter.voice = arVoice;
+          utter.rate = this.rate;
+          utter.pitch = 1.02;
+          setTimeout(() => {
+            try { window.speechSynthesis.speak(utter); } catch (e) {}
+          }, 40);
+        } catch (e) {
+          // Silent fallback
+        }
+      },
+
+      // Pleasant Web Audio Chimes (no external files)
+      playChime(type = 'success') {
+        try {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return;
+          if (!this.audioCtx) this.audioCtx = new Ctx();
+          if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+          const ctx = this.audioCtx;
+          const now = ctx.currentTime;
+
+          const tone = (freq, start, dur, vol = 0.11) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0.001, start);
+            gain.gain.exponentialRampToValueAtTime(vol, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + dur + 0.03);
+          };
+
+          if (type === 'success') {
+            tone(523.25, now, 0.13);
+            tone(659.25, now + 0.09, 0.15);
+            tone(783.99, now + 0.18, 0.22);
+          } else if (type === 'celebrate') {
+            tone(523.25, now, 0.11);
+            tone(659.25, now + 0.09, 0.11);
+            tone(783.99, now + 0.18, 0.11);
+            tone(1046.5, now + 0.28, 0.34, 0.14);
+          } else {
+            tone(330, now, 0.13, 0.07);
+          }
+        } catch (e) {}
+      }
+    };
+
+    AudioEngine.init();
+
+    /* ============================================================================
+       3. INLINE SVG ICONS, MASCOT & WORD ILLUSTRATIONS
+       ============================================================================ */
+
+    const ICONS = {
+      volume: `<svg class="w-5 h-5 inline-block shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14"/></svg>`,
+      star: `<svg class="w-4 h-4 inline-block fill-amber-400 text-amber-500" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+      home: `<svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5.5v-6.5h-5V21H4a1 1 0 01-1-1v-9.5z"/></svg>`,
+      award: `<svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>`,
+      lock: `<svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>`,
+      unlock: `<svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>`
+    };
+
+    function getMascotSVG(mood = 'happy', size = 84) {
+      const wings = mood === 'excited'
+        ? `<ellipse cx="24" cy="70" rx="10" ry="18" transform="rotate(-35 24 70)" fill="#8B5CF6" /><ellipse cx="96" cy="70" rx="10" ry="18" transform="rotate(35 96 70)" fill="#8B5CF6" />`
+        : `<ellipse cx="24" cy="70" rx="10" ry="18" transform="rotate(12 24 70)" fill="#8B5CF6" /><ellipse cx="96" cy="70" rx="10" ry="18" transform="rotate(-12 96 70)" fill="#8B5CF6" />`;
+      const eyes = mood === 'excited'
+        ? `<path d="M40 52 Q46 45 52 52" stroke="#1E1B4B" stroke-width="3.5" fill="none" stroke-linecap="round" /><path d="M68 52 Q74 45 80 52" stroke="#1E1B4B" stroke-width="3.5" fill="none" stroke-linecap="round" />`
+        : `<circle cx="47" cy="52" r="6.5" fill="#1E1B4B" /><circle cx="73" cy="52" r="6.5" fill="#1E1B4B" /><circle cx="49" cy="49.5" r="2.2" fill="#FFFFFF" /><circle cx="75" cy="49.5" r="2.2" fill="#FFFFFF" />`;
+
+      return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" class="drop-shadow-sm select-none shrink-0" aria-label="Noor la chouette">
+        <circle cx="60" cy="62" r="52" fill="#EDE9FE" />
+        <ellipse cx="60" cy="68" rx="36" ry="38" fill="#A78BFA" />
+        <ellipse cx="60" cy="78" rx="24" ry="23" fill="#FEF3C7" />
+        <path d="M50 74 Q54 78 58 74 M62 74 Q66 78 70 74 M56 84 Q60 88 64 84" stroke="#F59E0B" stroke-width="2.2" fill="none" stroke-linecap="round" />
+        <path d="M32 38 L24 22 L44 30 Z" fill="#8B5CF6" />
+        <path d="M88 38 L96 22 L76 30 Z" fill="#8B5CF6" />
+        <path d="M60 15 L63 23 L71 23 L65 28 L67 36 L60 31 L53 36 L55 28 L49 23 L57 23 Z" fill="#FACC15" stroke="#F59E0B" stroke-width="1.5" />
+        ${wings}
+        <circle cx="46" cy="52" r="14" fill="#FFFFFF" />
+        <circle cx="74" cy="52" r="14" fill="#FFFFFF" />
+        ${eyes}
+        <circle cx="35" cy="61" r="4.5" fill="#F472B6" opacity="0.6" />
+        <circle cx="85" cy="61" r="4.5" fill="#F472B6" opacity="0.6" />
+        <path d="M55 58 L65 58 L60 66 Z" fill="#F59E0B" />
+        <ellipse cx="48" cy="105" rx="7" ry="4" fill="#F59E0B" />
+        <ellipse cx="72" cy="105" rx="7" ry="4" fill="#F59E0B" />
+      </svg>`;
+    }
+
+    function getIllustrationSVG(id, size = 96) {
+      const wrap = (inner, bg = '#F8FAFC') =>
+        `<svg width="${size}" height="${size}" viewBox="0 0 120 120" class="rounded-2xl shrink-0 select-none" role="img" aria-label="${id}">
+          <rect width="120" height="120" rx="24" fill="${bg}" />${inner}
+        </svg>`;
+
+      switch (id) {
+        case 'bab':
+          return wrap(`<rect x="30" y="18" width="60" height="86" rx="8" fill="#D97706" stroke="#92400E" stroke-width="4" /><rect x="38" y="26" width="44" height="32" rx="4" fill="#F59E0B" /><rect x="38" y="64" width="44" height="32" rx="4" fill="#F59E0B" /><circle cx="78" cy="62" r="5" fill="#FEF08A" stroke="#92400E" stroke-width="2" />`, '#FEF3C7');
+        case 'bayt':
+          return wrap(`<polygon points="60,18 18,56 102,56" fill="#F43F5E" stroke="#BE123C" stroke-width="3" stroke-linejoin="round" /><rect x="28" y="56" width="64" height="48" rx="4" fill="#FEF9C3" stroke="#CA8A04" stroke-width="3" /><rect x="50" y="72" width="20" height="32" rx="3" fill="#B45309" /><rect x="34" y="64" width="12" height="12" rx="2" fill="#7DD3FC" stroke="#0284C7" stroke-width="2" /><rect x="74" y="64" width="12" height="12" rx="2" fill="#7DD3FC" stroke="#0284C7" stroke-width="2" />`, '#E0F2FE');
+        case 'bint':
+        case 'bint_reads':
+          return wrap(`<circle cx="60" cy="48" r="24" fill="#FDE68A" /><path d="M36 48 Q36 20 60 20 Q84 20 84 48 Q84 36 60 36 Q36 36 36 48 Z" fill="#78350F" /><circle cx="32" cy="48" r="9" fill="#78350F" /><circle cx="88" cy="48" r="9" fill="#78350F" /><circle cx="52" cy="48" r="3" fill="#1E293B" /><circle cx="68" cy="48" r="3" fill="#1E293B" /><path d="M54 58 Q60 64 66 58" stroke="#E11D48" stroke-width="3" fill="none" stroke-linecap="round" /><path d="M38 104 Q60 72 82 104 Z" fill="#F472B6" />${id === 'bint_reads' ? `<rect x="34" y="76" width="26" height="22" rx="3" fill="#38BDF8" stroke="#0284C7" stroke-width="2" /><rect x="60" y="76" width="26" height="22" rx="3" fill="#7DD3FC" stroke="#0284C7" stroke-width="2" />` : ''}`, '#FCE7F3');
+        case 'walad':
+        case 'walad_plays':
+          return wrap(`<circle cx="60" cy="46" r="23" fill="#FDE68A" /><path d="M37 42 Q40 20 60 20 Q80 20 83 42 Q70 30 60 32 Q50 30 37 42 Z" fill="#451A03" /><circle cx="52" cy="46" r="3" fill="#1E293B" /><circle cx="68" cy="46" r="3" fill="#1E293B" /><path d="M53 56 Q60 62 67 56" stroke="#D97706" stroke-width="3" fill="none" stroke-linecap="round" /><path d="M38 104 Q60 72 82 104 Z" fill="#38BDF8" />${id === 'walad_plays' ? `<circle cx="92" cy="86" r="14" fill="#FFFFFF" stroke="#1E293B" stroke-width="2.5" /><polygon points="92,78 98,83 96,90 88,90 86,83" fill="#1E293B" />` : ''}`, '#E0F2FE');
+        case 'qalam':
+          return wrap(`<g transform="rotate(-35 60 60)"><rect x="48" y="20" width="24" height="62" rx="4" fill="#FACC15" stroke="#CA8A04" stroke-width="3" /><rect x="48" y="16" width="24" height="12" rx="4" fill="#F472B6" stroke="#DB2777" stroke-width="2" /><polygon points="48,82 72,82 60,104" fill="#FDE68A" stroke="#CA8A04" stroke-width="2" /><polygon points="56,96 64,96 60,104" fill="#1E293B" /></g>`, '#FEF9C3');
+        case 'kitab':
+          return wrap(`<rect x="26" y="22" width="68" height="76" rx="8" fill="#3B82F6" stroke="#1D4ED8" stroke-width="3" /><rect x="34" y="22" width="6" height="76" fill="#1D4ED8" /><rect x="48" y="36" width="36" height="22" rx="4" fill="#DBEAFE" /><line x1="54" y1="45" x2="78" y2="45" stroke="#3B82F6" stroke-width="3" stroke-linecap="round" /><line x1="54" y1="52" x2="72" y2="52" stroke="#3B82F6" stroke-width="3" stroke-linecap="round" /><circle cx="66" cy="76" r="8" fill="#FACC15" />`, '#DBEAFE');
+        case 'mawz':
+          return wrap(`<path d="M28 84 Q58 96 86 36 Q92 26 96 32 Q84 102 26 90 Z" fill="#FACC15" stroke="#CA8A04" stroke-width="3" stroke-linejoin="round" /><path d="M84 34 L94 24" stroke="#78350F" stroke-width="5" stroke-linecap="round" />`, '#FEFCE8');
+        case 'tuffaha':
+          return wrap(`<path d="M60 36 C42 26 24 44 28 68 C32 92 50 100 60 94 C70 100 88 92 92 68 C96 44 78 26 60 36 Z" fill="#EF4444" stroke="#B91C1C" stroke-width="3" /><path d="M60 36 Q62 22 68 18" stroke="#78350F" stroke-width="4" fill="none" stroke-linecap="round" /><ellipse cx="74" cy="26" rx="11" ry="6" transform="rotate(-25 74 26)" fill="#22C55E" /><ellipse cx="44" cy="54" rx="5" ry="10" transform="rotate(-15 44 54)" fill="#FCA5A5" opacity="0.6" />`, '#FEE2E2');
+        case 'qitta':
+          return wrap(`<polygon points="32,44 28,20 50,34" fill="#FB923C" stroke="#C2410C" stroke-width="3" stroke-linejoin="round" /><polygon points="88,44 92,20 70,34" fill="#FB923C" stroke="#C2410C" stroke-width="3" stroke-linejoin="round" /><circle cx="60" cy="64" r="32" fill="#FDBA74" stroke="#C2410C" stroke-width="3" /><circle cx="48" cy="58" r="4.5" fill="#1E293B" /><circle cx="72" cy="58" r="4.5" fill="#1E293B" /><polygon points="56,66 64,66 60,71" fill="#F43F5E" /><path d="M52 75 Q60 80 68 75" stroke="#7C2D12" stroke-width="2.5" fill="none" stroke-linecap="round" /><line x1="20" y1="64" x2="38" y2="66" stroke="#7C2D12" stroke-width="2" /><line x1="20" y1="72" x2="38" y2="70" stroke="#7C2D12" stroke-width="2" /><line x1="82" y1="66" x2="100" y2="64" stroke="#7C2D12" stroke-width="2" /><line x1="82" y1="70" x2="100" y2="72" stroke="#7C2D12" stroke-width="2" />`, '#FFEDD5');
+        case 'kalb':
+          return wrap(`<ellipse cx="28" cy="64" rx="12" ry="24" transform="rotate(15 28 64)" fill="#92400E" /><ellipse cx="92" cy="64" rx="12" ry="24" transform="rotate(-15 92 64)" fill="#92400E" /><circle cx="60" cy="62" r="30" fill="#D97706" stroke="#78350F" stroke-width="3" /><ellipse cx="60" cy="72" rx="16" ry="12" fill="#FEF3C7" /><circle cx="48" cy="54" r="4.5" fill="#1E293B" /><circle cx="72" cy="54" r="4.5" fill="#1E293B" /><ellipse cx="60" cy="66" rx="6" ry="4.5" fill="#1E293B" /><path d="M54 76 Q60 82 66 76" stroke="#78350F" stroke-width="2.5" fill="none" stroke-linecap="round" />`, '#FEF3C7');
+        case 'shams':
+          return wrap(`${[0,45,90,135,180,225,270,315].map(d => `<line x1="60" y1="14" x2="60" y2="26" stroke="#F59E0B" stroke-width="5" stroke-linecap="round" transform="rotate(${d} 60 60)" />`).join('')}<circle cx="60" cy="60" r="26" fill="#FACC15" stroke="#F59E0B" stroke-width="3" /><circle cx="52" cy="56" r="3" fill="#92400E" /><circle cx="68" cy="56" r="3" fill="#92400E" /><path d="M52 66 Q60 72 68 66" stroke="#92400E" stroke-width="2.5" fill="none" stroke-linecap="round" />`, '#FEF9C3');
+        case 'qamar':
+        case 'hilal':
+          return wrap(`<path d="M74 26 A34 34 0 1 0 92 80 A26 26 0 1 1 74 26 Z" fill="#FDE047" stroke="#EAB308" stroke-width="2.5" /><circle cx="84" cy="36" r="3.5" fill="#FFFFFF" /><circle cx="94" cy="52" r="2.5" fill="#FFFFFF" /><circle cx="34" cy="34" r="2.5" fill="#FFFFFF" />`, '#312E81');
+        case 'samaka':
+          return wrap(`<polygon points="84,60 106,40 106,80" fill="#38BDF8" stroke="#0284C7" stroke-width="3" stroke-linejoin="round" /><ellipse cx="56" cy="60" rx="34" ry="22" fill="#0EA5E9" stroke="#0369A1" stroke-width="3" /><circle cx="38" cy="54" r="4.5" fill="#FFFFFF" /><circle cx="37" cy="54" r="2.2" fill="#0F172A" /><path d="M56 48 Q62 60 56 72" stroke="#BAE6FD" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="20" cy="40" r="4" fill="#BAE6FD" />`, '#E0F2FE');
+        case 'zahra':
+          return wrap(`<line x1="60" y1="60" x2="60" y2="104" stroke="#16A34A" stroke-width="5" stroke-linecap="round" /><ellipse cx="48" cy="86" rx="10" ry="5" transform="rotate(-25 48 86)" fill="#22C55E" />${[0,60,120,180,240,300].map(d => `<circle cx="60" cy="32" r="14" fill="#F472B6" transform="rotate(${d} 60 52)" />`).join('')}<circle cx="60" cy="52" r="13" fill="#FACC15" stroke="#EAB308" stroke-width="2" />`, '#FCE7F3');
+        case 'halib':
+          return wrap(`<path d="M40 36 L80 36 L74 98 L46 98 Z" fill="#FFFFFF" stroke="#94A3B8" stroke-width="3" stroke-linejoin="round" /><path d="M43 48 L77 48 L73 95 L47 95 Z" fill="#F1F5F9" /><ellipse cx="60" cy="36" rx="20" ry="5" fill="#E2E8F0" stroke="#94A3B8" stroke-width="2" /><text x="60" y="76" text-anchor="middle" fill="#38BDF8" font-size="14" font-weight="bold">LAIT</text>`, '#E0F2FE');
+        case 'najma':
+          return wrap(`<polygon points="60,16 72,44 102,46 79,66 86,96 60,80 34,96 41,66 18,46 48,44" fill="#FACC15" stroke="#D97706" stroke-width="3" stroke-linejoin="round" /><circle cx="52" cy="56" r="3" fill="#78350F" /><circle cx="68" cy="56" r="3" fill="#78350F" /><path d="M54 66 Q60 71 66 66" stroke="#78350F" stroke-width="2.5" fill="none" stroke-linecap="round" />`, '#EDE9FE');
+        default: {
+          const wObj = VOCABULARY.find(w => w.id === id);
+          const colors = ['#FCE7F3', '#EDE9FE', '#E0F2FE', '#D1FAE5', '#FEF3C7'];
+          const bg = colors[(id ? id.length : 0) % colors.length];
+          return wrap(`<circle cx="60" cy="60" r="40" fill="#FFFFFF" opacity="0.85" /><text x="60" y="68" text-anchor="middle" font-size="38" font-weight="700" fill="#6D28D9" style="font-family: Noto Naskh Arabic, serif;">${wObj ? wObj.letter : 'أ'}</text><text x="60" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">${wObj ? wObj.fr : ''}</text>`, bg);
+        }
+      }
+    }
+
+    /* ============================================================================
+       4. APPLICATION STATE & PERSISTENCE (WITH SAFE LOCALSTORAGE)
+       ============================================================================ */
+
+    const STORAGE_KEY = 'noor_arabic_reader_v1';
+
+    function loadSavedState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    const saved = loadSavedState();
+
+    const State = {
+      view: 'home', // home | unit1 | unit2 | unit3 | unit4 | unit5 | games | diagnostic | review | teacher
+      activeGame: null,
+      stars: saved?.stars || 0,
+      badges: saved?.badges || [],
+      stats: saved?.stats || {},
+      reviewQueue: saved?.reviewQueue || [],
+      completedActivities: saved?.completedActivities || 0,
+      lastActivity: saved?.lastActivity || 'Découverte',
+      mascot: {
+        mood: 'happy',
+        fr: 'Bonjour ! Je suis Noor. Prête à jouer avec les lettres ?',
+        ar: 'مَرْحَبًا! أَنَا نُورُ. هَلْ أَنْتِ مُسْتَعِدَّةٌ؟'
+      },
+      remediation: null,
+      showBadges: false,
+      teacherUnlocked: false,
+      pinError: false,
+      teacherConfig: saved?.teacherConfig || {
+        focusLetters: ['ب', 'ت', 'ث', 'ج', 'ح', 'خ'],
+        difficulty: 'easy',
+        selectedWordIds: VOCABULARY.filter(w => w.core).map(w => w.id)
+      },
+      // Unit & Game sub-states
+      u1: { groupId: 'g_ba', char: 'ب', mode: 'explore', quizTarget: null, quizOptions: [], feedback: null, streak: 0 },
+      u2: { anchor: 'ب', tab: 'learn', targetHaraka: HARAKAT_DATA[0], trainLetter: 'ب', spotPair: null, feedback: null, score: 0 },
+      u3: { tab: 'builder', consonant: 'ب', harakaId: 'fatha', quizTarget: null, quizOptions: [], feedback: null, wins: 0 },
+      u4: { tab: 'cards', showSyllables: true, quizWord: null, quizOpts: [], wins: 0 },
+      u5: { idx: 0, activity: 'read', ordered: [], pool: [], status: null },
+      diag: { step: 0, done: false },
+      revIdx: 0,
+      gHunter: { target: 'ب', bubbles: [], found: 0 },
+      gDots: { target: 'ب', solved: false, wins: 0 },
+      gOdd: { round: null, wins: 0 },
+      gMem: { cards: [], flipped: [], matched: [] },
+      gBuild: { word: VOCABULARY[0], picked: [], pool: [], status: null },
+      gMatch: { target: VOCABULARY[0], opts: [] }
+    };
+
+    function saveProgress() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          stars: State.stars,
+          badges: State.badges,
+          stats: State.stats,
+          reviewQueue: State.reviewQueue,
+          completedActivities: State.completedActivities,
+          lastActivity: State.lastActivity,
+          teacherConfig: State.teacherConfig
+        }));
+      } catch (e) {}
+    }
+
+    /* ============================================================================
+       5. HELPERS & ADAPTIVE ENGINE
+       ============================================================================ */
+
+    function shuffle(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function randomFrom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function getChoiceCount() {
+      return State.teacherConfig.difficulty === 'easy' ? 3 : State.teacherConfig.difficulty === 'medium' ? 4 : 5;
+    }
+
+    function recordAttempt({ kind, id, isCorrect, chosen = null, activityLabel = '' }) {
+      const key = `${kind}:${id}`;
+      if (activityLabel) State.lastActivity = activityLabel;
+
+      const cur = State.stats[key] || { kind, id, correct: 0, errors: 0, confusedWith: {} };
+      if (!isCorrect && chosen && chosen !== id) {
+        cur.confusedWith[chosen] = (cur.confusedWith[chosen] || 0) + 1;
+      }
+      cur.correct += isCorrect ? 1 : 0;
+      cur.errors += isCorrect ? 0 : 1;
+      State.stats[key] = cur;
+
+      if (isCorrect) {
+        AudioEngine.playChime('success');
+        State.stars += 1;
+        const msg = randomFrom(PRAISE_MESSAGES);
+        State.mascot = { mood: 'excited', fr: msg.fr, ar: msg.ar };
+        if (cur.correct >= 3) {
+          State.reviewQueue = State.reviewQueue.filter(item => !(item.kind === kind && item.id === id));
+        }
+      } else {
+        AudioEngine.playChime('gentle');
+        const msg = randomFrom(ENCOURAGE_MESSAGES);
+        State.mascot = { mood: 'happy', fr: msg.fr, ar: msg.ar };
+        if (!State.reviewQueue.some(x => x.kind === kind && x.id === id)) {
+          State.reviewQueue.push({ kind, id, confusedWith: chosen });
+        }
+        if ((kind === 'letter' || kind === 'haraka') && chosen && chosen !== id) {
+          State.remediation = { kind, expected: id, chosen };
+        }
+      }
+      saveProgress();
+    }
+
+    function awardBadge(id, titleFr, titleAr) {
+      State.completedActivities += 1;
+      if (!State.badges.some(b => b.id === id)) {
+        AudioEngine.playChime('celebrate');
+        State.badges.push({ id, titleFr, titleAr });
+      }
+      saveProgress();
+    }
+
+    function computeAnalytics() {
+      const entries = Object.values(State.stats);
+      const totalCorrect = entries.reduce((a, e) => a + e.correct, 0);
+      const totalErrors = entries.reduce((a, e) => a + e.errors, 0);
+      const masteredLetters = entries
+        .filter(e => e.kind === 'letter' && e.correct >= 3 && e.correct / (e.correct + e.errors) >= 0.7)
+        .map(e => e.id);
+      const weakLetters = entries
+        .filter(e => e.kind === 'letter' && e.errors > 0 && (e.correct < 3 || e.errors >= e.correct))
+        .map(e => ({ id: e.id, errors: e.errors, confusedWith: Object.keys(e.confusedWith) }));
+      const harakatStats = HARAKAT_DATA.map(h => {
+        const st = State.stats[`haraka:${h.id}`] || { correct: 0, errors: 0 };
+        return { ...h, ...st };
+      });
+      const masteredSyllables = entries.filter(e => e.kind === 'syllable' && e.correct >= 2).map(e => e.id);
+
+      let suggestedNext = { labelFr: 'Unité 1 : Famille ب ت ث', targetView: 'unit1' };
+      if (weakLetters.length > 0) {
+        suggestedNext = { labelFr: `Révision Magique (${weakLetters.map(w => w.id).join('، ')})`, targetView: 'review' };
+      } else if (harakatStats.every(h => h.correct === 0)) {
+        suggestedNext = { labelFr: 'Unité 2 : Découvrir les Harakat', targetView: 'unit2' };
+      } else if (masteredSyllables.length < 3) {
+        suggestedNext = { labelFr: 'Unité 3 : Assembler les Syllabes', targetView: 'unit3' };
+      } else {
+        suggestedNext = { labelFr: 'Unité 4 : Mots Illustrés', targetView: 'unit4' };
+      }
+      return { totalCorrect, totalErrors, masteredLetters, weakLetters, harakatStats, suggestedNext };
+    }
+
+    /* ============================================================================
+       6. NAVIGATION & ACTIVITY SETUP ACTIONS
+       ============================================================================ */
+
+    window.App = {
+      speak(text) { AudioEngine.speak(text); },
+
+      toggleRate() {
+        AudioEngine.rate = AudioEngine.rate < 0.85 ? 0.96 : 0.76;
+        AudioEngine.speak('مَرْحَبًا');
+        render();
+      },
+
+      go(view, gameId = null) {
+        AudioEngine.stopAll();
+        State.view = view;
+        State.activeGame = gameId;
+        if (view === 'diagnostic') {
+          State.diag = { step: 0, done: false };
+          setTimeout(() => AudioEngine.speak('بَ'), 180);
+        }
+        if (view === 'games' && gameId) {
+          this.startGame(gameId);
+          return;
+        }
+        render();
+      },
+
+      openBadges(show) {
+        State.showBadges = show;
+        render();
+      },
+
+      closeRemediation() {
+        State.remediation = null;
+        render();
+      },
+
+      /* --- Unit 1 --- */
+      u1SelectGroup(gid) {
+        const grp = LETTER_GROUPS.find(g => g.id === gid) || LETTER_GROUPS[0];
+        State.u1.groupId = grp.id;
+        State.u1.char = grp.letters[0];
+        State.u1.mode = 'explore';
+        render();
+      },
+      u1SelectChar(ch) {
+        State.u1.char = ch;
+        AudioEngine.speak(LETTERS_DATA[ch].sound);
+        render();
+      },
+      u1SetMode(m) {
+        State.u1.mode = m;
+        if (m === 'quiz') this.u1NextQuiz();
+        else render();
+      },
+      u1NextQuiz() {
+        const grp = LETTER_GROUPS.find(g => g.id === State.u1.groupId) || LETTER_GROUPS[0];
+        const target = randomFrom(grp.letters);
+        const pool = [...grp.letters];
+        const all = Object.keys(LETTERS_DATA);
+        while (pool.length < Math.min(getChoiceCount(), Math.max(3, grp.letters.length))) {
+          const extra = randomFrom(all);
+          if (!pool.includes(extra)) pool.push(extra);
+        }
+        State.u1.quizTarget = target;
+        State.u1.quizOptions = shuffle(pool);
+        State.u1.feedback = null;
+        AudioEngine.speak(LETTERS_DATA[target].sound);
+        render();
+      },
+      u1Answer(ch) {
+        const grp = LETTER_GROUPS.find(g => g.id === State.u1.groupId) || LETTER_GROUPS[0];
+        if (ch === State.u1.quizTarget) {
+          State.u1.feedback = 'ok';
+          State.u1.streak += 1;
+          recordAttempt({ kind: 'letter', id: State.u1.quizTarget, isCorrect: true, activityLabel: `Lettres : ${grp.titleFr}` });
+          if (State.u1.streak === 4) awardBadge(`u1_${grp.id}`, `Championne : ${grp.letters.join(' ')}`, grp.titleAr);
+          render();
+          setTimeout(() => this.u1NextQuiz(), 950);
+        } else {
+          State.u1.feedback = 'retry';
+          recordAttempt({ kind: 'letter', id: State.u1.quizTarget, isCorrect: false, chosen: ch, activityLabel: `Lettres : ${grp.titleFr}` });
+          render();
+        }
+      },
+
+      /* --- Unit 2 --- */
+      u2Anchor(ch) {
+        State.u2.anchor = ch;
+        AudioEngine.speak(ch + HARAKAT_DATA[0].mark);
+        render();
+      },
+      u2Tab(tab) {
+        State.u2.tab = tab;
+        if (tab === 'listen') this.u2NextListen();
+        else if (tab === 'train') this.u2NextTrain();
+        else if (tab === 'spotError') this.u2NextSpot();
+        else render();
+      },
+      u2NextListen() {
+        const picked = randomFrom(HARAKAT_DATA.filter(h => h.type === 'short'));
+        State.u2.targetHaraka = picked;
+        State.u2.feedback = null;
+        AudioEngine.speak(State.u2.anchor + picked.mark);
+        render();
+      },
+      u2NextTrain() {
+        const l = randomFrom(['ب', 'م', 'س', 'ت', 'ل', 'د']);
+        const h = randomFrom(HARAKAT_DATA.slice(0, 3));
+        State.u2.trainLetter = l;
+        State.u2.targetHaraka = h;
+        State.u2.feedback = null;
+        AudioEngine.speak(l + h.mark);
+        render();
+      },
+      u2NextSpot() {
+        const l = randomFrom(['ب', 'م', 'س', 'ت', 'د']);
+        const spokenH = randomFrom(HARAKAT_DATA.slice(0, 3));
+        const isMatch = Math.random() > 0.5;
+        const shownH = isMatch ? spokenH : randomFrom(HARAKAT_DATA.slice(0, 3).filter(x => x.id !== spokenH.id));
+        State.u2.spotPair = { letter: l, spokenH, shownH, isMatch };
+        State.u2.feedback = null;
+        AudioEngine.speak(l + spokenH.mark);
+        render();
+      },
+      u2ChooseHaraka(hid) {
+        const target = State.u2.targetHaraka;
+        if (hid === target.id) {
+          State.u2.feedback = 'ok';
+          State.u2.score += 1;
+          recordAttempt({ kind: 'haraka', id: target.id, isCorrect: true, activityLabel: 'Harakat' });
+          if (State.u2.score === 5) awardBadge('unit2_harakat', 'Reine des Voyelles', 'بَطَلَةُ الْحَرَكَاتِ');
+          render();
+          setTimeout(() => (State.u2.tab === 'train' ? this.u2NextTrain() : this.u2NextListen()), 950);
+        } else {
+          State.u2.feedback = 'retry';
+          recordAttempt({ kind: 'haraka', id: target.id, isCorrect: false, chosen: hid, activityLabel: 'Harakat' });
+          render();
+        }
+      },
+      u2SpotAnswer(userSaysYes) {
+        const sp = State.u2.spotPair;
+        const ok = userSaysYes === sp.isMatch;
+        recordAttempt({ kind: 'haraka', id: sp.spokenH.id, isCorrect: ok, chosen: ok ? null : sp.shownH.id, activityLabel: 'Harakat : Vrai/Faux' });
+        State.u2.feedback = ok ? 'ok' : 'retry';
+        render();
+        if (ok) setTimeout(() => this.u2NextSpot(), 900);
+      },
+
+      /* --- Unit 3 --- */
+      u3Tab(tab) {
+        State.u3.tab = tab;
+        if (tab === 'quiz') this.u3NextQuiz();
+        else render();
+      },
+      u3SetConsonant(c) {
+        State.u3.consonant = c;
+        const h = HARAKAT_DATA.find(x => x.id === State.u3.harakaId) || HARAKAT_DATA[0];
+        AudioEngine.speak(c + h.mark);
+        render();
+      },
+      u3SetHaraka(hid) {
+        State.u3.harakaId = hid;
+        const h = HARAKAT_DATA.find(x => x.id === hid) || HARAKAT_DATA[0];
+        AudioEngine.speak(State.u3.consonant + h.mark);
+        render();
+      },
+      u3NextQuiz() {
+        const c = randomFrom(SYLLABLE_CONSONANTS.slice(0, 7));
+        const hs = [HARAKAT_DATA[0], HARAKAT_DATA[1], HARAKAT_DATA[2], HARAKAT_DATA[4], HARAKAT_DATA[5], HARAKAT_DATA[6]];
+        const targetH = randomFrom(hs);
+        const targetText = c + targetH.mark;
+        const opts = new Set([targetText]);
+        while (opts.size < 4) opts.add(c + randomFrom(hs).mark);
+        State.u3.quizTarget = targetText;
+        State.u3.quizOptions = shuffle(Array.from(opts));
+        State.u3.feedback = null;
+        AudioEngine.speak(targetText);
+        render();
+      },
+      u3Answer(opt) {
+        const ok = opt === State.u3.quizTarget;
+        recordAttempt({ kind: 'syllable', id: State.u3.quizTarget, isCorrect: ok, activityLabel: 'Syllabes' });
+        State.u3.feedback = ok ? 'ok' : 'retry';
+        if (ok) {
+          State.u3.wins += 1;
+          if (State.u3.wins === 5) awardBadge('unit3_syl', 'As des Syllabes', 'بَطَلَةُ الْمَقَاطِعِ');
+          render();
+          setTimeout(() => this.u3NextQuiz(), 900);
+        } else {
+          render();
+        }
+      },
+
+      /* --- Unit 4 --- */
+      u4Tab(tab) {
+        State.u4.tab = tab;
+        if (tab === 'quiz') this.u4NextQuiz();
+        else render();
+      },
+      u4ToggleSyl() {
+        State.u4.showSyllables = !State.u4.showSyllables;
+        render();
+      },
+      u4NextQuiz() {
+        const words = VOCABULARY.filter(w => State.teacherConfig.selectedWordIds.includes(w.id));
+        const pool = words.length >= 3 ? words : VOCABULARY.slice(0, 12);
+        const target = randomFrom(pool);
+        const others = shuffle(pool.filter(w => w.id !== target.id)).slice(0, 2);
+        State.u4.quizWord = target;
+        State.u4.quizOpts = shuffle([target, ...others]);
+        AudioEngine.speak(target.ar);
+        render();
+      },
+      u4Answer(wid) {
+        const ok = wid === State.u4.quizWord.id;
+        recordAttempt({ kind: 'word', id: State.u4.quizWord.id, isCorrect: ok, activityLabel: 'Mots : Image' });
+        if (ok) {
+          State.u4.wins += 1;
+          if (State.u4.wins === 5) awardBadge('unit4_words', 'Exploratrice de Mots', 'بَطَلَةُ الْكَلِمَاتِ');
+          render();
+          setTimeout(() => this.u4NextQuiz(), 850);
+        } else {
+          render();
+        }
+      },
+
+      /* --- Unit 5 --- */
+      u5Activity(act) {
+        State.u5.activity = act;
+        State.u5.status = null;
+        if (act === 'order') this.u5SetupOrder();
+        else render();
+      },
+      u5Change(delta) {
+        State.u5.idx = (State.u5.idx + delta + SENTENCES_DATA.length) % SENTENCES_DATA.length;
+        State.u5.status = null;
+        if (State.u5.activity === 'order') this.u5SetupOrder();
+        else render();
+      },
+      u5SetupOrder() {
+        const s = SENTENCES_DATA[State.u5.idx];
+        State.u5.ordered = [];
+        State.u5.pool = shuffle(s.words);
+        State.u5.status = null;
+        render();
+      },
+      u5PickOrder(poolIdx) {
+        const s = SENTENCES_DATA[State.u5.idx];
+        const word = State.u5.pool[poolIdx];
+        State.u5.ordered.push(word);
+        State.u5.pool.splice(poolIdx, 1);
+        if (State.u5.pool.length === 0) {
+          const ok = State.u5.ordered.join(' ') === s.words.join(' ');
+          State.u5.status = ok ? 'ok' : 'retry';
+          recordAttempt({ kind: 'sentence', id: s.id, isCorrect: ok, activityLabel: 'Phrases : Ordre' });
+          if (ok) {
+            AudioEngine.speak(s.ar);
+            if (State.u5.idx === SENTENCES_DATA.length - 1) awardBadge('unit5_sent', 'Petite Lectrice', 'قَارِئَةٌ صَغِيرَةٌ');
+          }
+        }
+        render();
+      },
+      u5Complete(opt) {
+        const s = SENTENCES_DATA[State.u5.idx];
+        const ok = opt === s.words[s.missingWordIdx];
+        State.u5.status = ok ? 'ok' : 'retry';
+        recordAttempt({ kind: 'sentence', id: s.id, isCorrect: ok, activityLabel: 'Phrases : Compléter' });
+        if (ok) AudioEngine.speak(s.ar);
+        render();
+      },
+
+      /* --- Diagnostic --- */
+      diagAnswer(val, qKind, qId) {
+        const ok = val === qId;
+        recordAttempt({ kind: qKind, id: qId, isCorrect: ok, chosen: ok ? null : val, activityLabel: 'Défi Découverte' });
+        if (State.diag.step + 1 < 6) {
+          State.diag.step += 1;
+          const nextAudios = ['بَ', 'جَ', 'شَ', 'بَ', 'بِ', 'بَابٌ'];
+          render();
+          setTimeout(() => AudioEngine.speak(nextAudios[State.diag.step]), 350);
+        } else {
+          State.diag.done = true;
+          awardBadge('diag_done', 'Aventurière', 'مُغَامِرَةٌ شُجَاعَةٌ');
+          render();
+        }
+      },
+
+      /* --- Adaptive Review --- */
+      reviewAnswer(val, itemKind, itemId) {
+        const ok = val === itemId;
+        recordAttempt({ kind: itemKind, id: itemId, isCorrect: ok, chosen: ok ? null : val, activityLabel: 'Révision Magique' });
+        if (ok) State.revIdx += 1;
+        render();
+      },
+
+      /* --- Games Arcade --- */
+      startGame(gid) {
+        State.view = 'games';
+        State.activeGame = gid;
+        if (gid === 'hunter') this.initHunter();
+        else if (gid === 'dots') this.initDots();
+        else if (gid === 'odd') this.initOdd();
+        else if (gid === 'memory') this.initMemory();
+        else if (gid === 'buildWord') this.initBuildWord();
+        else if (gid === 'matchWord') this.initMatchWord();
+        else render();
+      },
+
+      initHunter() {
+        const pool = State.teacherConfig.focusLetters.length >= 3 ? State.teacherConfig.focusLetters : ['ب', 'ت', 'ث', 'ج', 'ح', 'خ'];
+        const target = randomFrom(pool);
+        const items = [];
+        for (let i = 0; i < 3; i++) items.push({ id: `t_${i}`, char: target, popped: false });
+        while (items.length < 9) {
+          const d = randomFrom(pool.filter(c => c !== target));
+          items.push({ id: `d_${items.length}`, char: d, popped: false });
+        }
+        State.gHunter = { target, bubbles: shuffle(items), found: 0 };
+        AudioEngine.speak(LETTERS_DATA[target]?.sound || target);
+        render();
+      },
+      tapBubble(bid) {
+        const b = State.gHunter.bubbles.find(x => x.id === bid);
+        if (!b || b.popped) return;
+        if (b.char === State.gHunter.target) {
+          b.popped = true;
+          State.gHunter.found += 1;
+          recordAttempt({ kind: 'letter', id: State.gHunter.target, isCorrect: true, activityLabel: 'Jeu : Chasseur' });
+          render();
+          if (State.gHunter.found === 3) {
+            awardBadge('game_hunter', 'Chasseuse de Lettres', 'صَائِدَةُ الْحُرُوفِ');
+            setTimeout(() => this.initHunter(), 950);
+          }
+        } else {
+          recordAttempt({ kind: 'letter', id: State.gHunter.target, isCorrect: false, chosen: b.char, activityLabel: 'Jeu : Chasseur' });
+          render();
+        }
+      },
+
+      initDots() {
+        const dotLetters = ['ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'س', 'ش', 'ف', 'ق'];
+        const next = randomFrom(dotLetters);
+        State.gDots.target = next;
+        State.gDots.solved = false;
+        AudioEngine.speak(LETTERS_DATA[next].sound);
+        render();
+      },
+      pickDots(dots, pos) {
+        const info = LETTERS_DATA[State.gDots.target];
+        const ok = dots === info.dots && pos === info.dotPos;
+        recordAttempt({ kind: 'letter', id: State.gDots.target, isCorrect: ok, activityLabel: 'Jeu : Points' });
+        if (ok) {
+          State.gDots.solved = true;
+          State.gDots.wins += 1;
+          if (State.gDots.wins === 4) awardBadge('game_dots', 'Détective des Points', 'مُكْتَشِفَةُ النُّقَاطِ');
+          render();
+          setTimeout(() => this.initDots(), 1050);
+        } else {
+          render();
+        }
+      },
+
+      initOdd() {
+        const grp = randomFrom(LETTER_GROUPS.slice(0, 9));
+        const main = grp.letters[0];
+        const odd = randomFrom(grp.letters.filter(l => l !== main));
+        State.gOdd.round = {
+          main, odd,
+          cards: shuffle([
+            { id: 1, char: main, isOdd: false },
+            { id: 2, char: main, isOdd: false },
+            { id: 3, char: main, isOdd: false },
+            { id: 4, char: odd, isOdd: true }
+          ])
+        };
+        render();
+      },
+      pickOdd(cid) {
+        const c = State.gOdd.round.cards.find(x => x.id === cid);
+        recordAttempt({ kind: 'letter', id: State.gOdd.round.odd, isCorrect: c.isOdd, chosen: c.isOdd ? null : c.char, activityLabel: 'Jeu : Intrus' });
+        if (c.isOdd) {
+          AudioEngine.speak(LETTERS_DATA[State.gOdd.round.odd].sound);
+          State.gOdd.wins += 1;
+          if (State.gOdd.wins === 4) awardBadge('game_odd', 'Œil de Lynx', 'عَيْنٌ ذَكِيَّةٌ');
+          render();
+          setTimeout(() => this.initOdd(), 900);
+        } else {
+          render();
+        }
+      },
+
+      initMemory() {
+        const pairs = [
+          { letter: 'ب', wordId: 'bab' },
+          { letter: 'ت', wordId: 'tuffaha' },
+          { letter: 'ق', wordId: 'qitta' },
+          { letter: 'ش', wordId: 'shams' }
+        ];
+        const deck = [];
+        pairs.forEach(p => {
+          deck.push({ uid: `L_${p.letter}`, pairKey: p.letter, type: 'letter', letter: p.letter });
+          deck.push({ uid: `W_${p.wordId}`, pairKey: p.letter, type: 'word', wordId: p.wordId });
+        });
+        State.gMem = { cards: shuffle(deck), flipped: [], matched: [] };
+        render();
+      },
+      flipCard(uid) {
+        const m = State.gMem;
+        const card = m.cards.find(c => c.uid === uid);
+        if (!card || m.flipped.length === 2 || m.flipped.some(f => f.uid === uid) || m.matched.includes(card.pairKey)) return;
+        m.flipped.push(card);
+        if (card.type === 'letter') AudioEngine.speak(LETTERS_DATA[card.letter].sound);
+        else AudioEngine.speak(VOCABULARY.find(w => w.id === card.wordId)?.ar);
+
+        if (m.flipped.length === 2) {
+          if (m.flipped[0].pairKey === m.flipped[1].pairKey) {
+            m.matched.push(card.pairKey);
+            m.flipped = [];
+            recordAttempt({ kind: 'letter', id: card.pairKey, isCorrect: true, activityLabel: 'Jeu : Mémoire' });
+            if (m.matched.length === 4) awardBadge('game_memory', 'Mémoire Magique', 'ذَاكِرَةٌ قَوِيَّةٌ');
+          } else {
+            render();
+            setTimeout(() => { m.flipped = []; render(); }, 900);
+            return;
+          }
+        }
+        render();
+      },
+
+      initBuildWord(specificWord = null) {
+        const words = VOCABULARY.filter(w => State.teacherConfig.selectedWordIds.includes(w.id) && w.syllables.length >= 2);
+        const target = specificWord || randomFrom(words.length ? words : VOCABULARY.slice(0, 10));
+        State.gBuild = { word: target, picked: [], pool: shuffle(target.syllables), status: null };
+        AudioEngine.speak(target.ar);
+        render();
+      },
+      pickBuildSyl(idx) {
+        const g = State.gBuild;
+        g.picked.push(g.pool[idx]);
+        g.pool.splice(idx, 1);
+        if (g.pool.length === 0) {
+          const ok = g.picked.join('') === g.word.syllables.join('');
+          g.status = ok ? 'ok' : 'retry';
+          recordAttempt({ kind: 'word', id: g.word.id, isCorrect: ok, activityLabel: 'Jeu : Construis le mot' });
+          if (ok) {
+            awardBadge('game_build', 'Architecte des Mots', 'بَانِيَةُ الْكَلِمَاتِ');
+            render();
+            setTimeout(() => this.initBuildWord(), 1050);
+            return;
+          }
+        }
+        render();
+      },
+
+      initMatchWord() {
+        const words = VOCABULARY.filter(w => State.teacherConfig.selectedWordIds.includes(w.id));
+        const pool = words.length >= 3 ? words : VOCABULARY.slice(0, 12);
+        const t = randomFrom(pool);
+        const others = shuffle(pool.filter(w => w.id !== t.id)).slice(0, Math.min(getChoiceCount() - 1, 3));
+        State.gMatch = { target: t, opts: shuffle([t, ...others]) };
+        render();
+      },
+      pickMatchWord(wid) {
+        const ok = wid === State.gMatch.target.id;
+        recordAttempt({ kind: 'word', id: State.gMatch.target.id, isCorrect: ok, activityLabel: 'Jeu : Mot & Image' });
+        if (ok) {
+          AudioEngine.speak(State.gMatch.target.ar);
+          awardBadge('game_match', 'Lectrice Éclair', 'قَارِئَةٌ مَاهِرَةٌ');
+          render();
+          setTimeout(() => this.initMatchWord(), 950);
+        } else {
+          render();
+        }
+      },
+
+      /* --- Teacher Dashboard --- */
+      unlockTeacher() {
+        const inp = document.getElementById('teacher-pin-input');
+        if (inp && inp.value.trim() === '1234') {
+          State.teacherUnlocked = true;
+          State.pinError = false;
+        } else {
+          State.pinError = true;
+        }
+        render();
+      },
+      setDifficulty(d) {
+        State.teacherConfig.difficulty = d;
+        saveProgress();
+        render();
+      },
+      toggleFocusLetter(ch) {
+        const arr = State.teacherConfig.focusLetters;
+        if (arr.includes(ch)) {
+          if (arr.length > 1) State.teacherConfig.focusLetters = arr.filter(x => x !== ch);
+        } else {
+          State.teacherConfig.focusLetters.push(ch);
+        }
+        saveProgress();
+        render();
+      },
+      resetCategory(kind) {
+        Object.keys(State.stats).forEach(k => {
+          if (k.startsWith(`${kind}:`)) delete State.stats[k];
+        });
+        State.reviewQueue = State.reviewQueue.filter(i => i.kind !== kind);
+        saveProgress();
+        render();
+      }
+    };
+
+    /* ============================================================================
+       7. VIEW RENDERERS
+       ============================================================================ */
+
+    function renderHeader() {
+      const rateLabel = AudioEngine.rate < 0.85 ? 'Lent' : 'Normal';
+      document.getElementById('app-header').innerHTML = `
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <button onclick="App.go('home')" class="flex items-center gap-2.5 group cursor-pointer">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition font-black text-xl">
+              ✨
+            </div>
+            <div class="text-left">
+              <div class="flex items-center gap-2">
+                <span class="font-black text-lg sm:text-xl text-purple-900 leading-none">Noor</span>
+                <span class="arabic-text text-xl font-bold text-pink-600 leading-none">نُورُ الْقِرَاءَةِ</span>
+              </div>
+              <p class="text-xs font-semibold text-slate-500 hidden sm:block">Apprendre à lire l’arabe en s’amusant</p>
+            </div>
+          </button>
+
+          <div class="flex items-center gap-2 sm:gap-2.5">
+            ${State.view !== 'home' ? `
+              <button onclick="App.go('home')" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold text-sm transition cursor-pointer">
+                ${ICONS.home} <span class="hidden sm:inline">Accueil</span>
+              </button>
+            ` : ''}
+
+            <button onclick="App.toggleRate()" title="Vitesse de la voix" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 font-bold text-xs sm:text-sm transition cursor-pointer">
+              ${ICONS.volume} <span>${rateLabel}</span>
+            </button>
+
+            <div class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-100 border border-amber-300 text-amber-800 font-black text-sm">
+              ${ICONS.star} <span>${State.stars}</span>
+            </div>
+
+            <button onclick="App.openBadges(true)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold text-sm transition cursor-pointer">
+              ${ICONS.award} <span class="hidden sm:inline">${State.badges.length}</span>
+            </button>
+
+            <button onclick="App.go('teacher')" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer ${State.view === 'teacher' ? 'bg-slate-800 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}">
+              ${State.teacherUnlocked ? ICONS.unlock : ICONS.lock} <span class="hidden md:inline">Professeur</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHome() {
+      const units = [
+        { id: 'unit1', num: 'Étape 1', titleAr: 'مُخْتَبَرُ الْحُرُوفِ', titleFr: 'Les Lettres qui se ressemblent', desc: 'ب ت ث • ج ح خ • س ش • ف ق ...', bg: 'from-pink-100 to-rose-50 border-pink-200', icon: '👀', iconBg: 'bg-pink-500' },
+        { id: 'unit2', num: 'Étape 2', titleAr: 'عَالَمُ الْحَرَكَاتِ', titleFr: 'Les Voyelles (Harakat)', desc: 'بَ • بُ • بِ • بْ • بَا • بُو • بِي', bg: 'from-sky-100 to-blue-50 border-sky-200', icon: '🔊', iconBg: 'bg-sky-500' },
+        { id: 'unit3', num: 'Étape 3', titleAr: 'مَعْمَلُ الْمَقَاطِعِ', titleFr: 'Assembler les Syllabes', desc: 'مَ • مُ • مِ • سَا • لُو • بِي', bg: 'from-emerald-100 to-teal-50 border-emerald-200', icon: '🧩', iconBg: 'bg-emerald-500' },
+        { id: 'unit4', num: 'Étape 4', titleAr: 'كَلِمَاتِي الْمُصَوَّرَةُ', titleFr: 'Mes Mots Illustrés', desc: 'بَابٌ • بَيْتٌ • قِطَّةٌ • شَمْسٌ', bg: 'from-amber-100 to-yellow-50 border-amber-200', icon: '📘', iconBg: 'bg-amber-500' },
+        { id: 'unit5', num: 'Étape 5', titleAr: 'جُمَلِي الْأُولَى', titleFr: 'Mes Premières Phrases', desc: 'هَذَا كِتَابٌ • الْبِنْتُ تَقْرَأُ', bg: 'from-violet-100 to-purple-50 border-violet-200', icon: '💬', iconBg: 'bg-violet-500' },
+        { id: 'games', num: 'Jeux ★', titleAr: 'مَدِينَةُ الْأَلْعَابِ', titleFr: 'Jeux Amusants', desc: 'Chasseur, Points, Mémoire, Mots...', bg: 'from-fuchsia-100 to-pink-50 border-fuchsia-200', icon: '🎮', iconBg: 'bg-fuchsia-500' }
+      ];
+
+      return `
+        <div class="space-y-6 animate-pop">
+          <div class="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border-2 border-purple-100 flex flex-col md:flex-row items-center justify-between gap-5">
+            <div class="flex items-center gap-4">
+              <div class="animate-float">${getMascotSVG(State.mascot.mood, 92)}</div>
+              <div>
+                <p class="text-lg sm:text-2xl font-black text-purple-900">${State.mascot.fr}</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <p class="arabic-text text-xl sm:text-2xl font-bold text-pink-600">${State.mascot.ar}</p>
+                  <button onclick="App.speak('${State.mascot.ar}')" class="p-2 rounded-full bg-pink-100 hover:bg-pink-200 text-pink-600 transition cursor-pointer" title="Écouter">
+                    ${ICONS.volume}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2.5 justify-center">
+              <button onclick="App.go('diagnostic')" class="px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-extrabold shadow-md transition cursor-pointer">
+                🧭 Petit Défi Découverte
+              </button>
+              ${State.reviewQueue.length > 0 ? `
+                <button onclick="App.go('review')" class="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold shadow-md transition cursor-pointer">
+                  🪄 Révision Magique (${State.reviewQueue.length})
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            ${units.map(u => `
+              <button onclick="App.go('${u.id}')" class="text-left bg-gradient-to-br ${u.bg} border-2 rounded-3xl p-5 shadow-xs hover:shadow-md hover:-translate-y-1 transition-all flex flex-col justify-between min-h-[170px] cursor-pointer">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="w-12 h-12 rounded-2xl ${u.iconBg} shadow-sm flex items-center justify-center text-2xl">${u.icon}</div>
+                  <span class="px-3 py-1 rounded-full bg-white/85 text-purple-900 font-black text-sm shadow-xs">${u.num}</span>
+                </div>
+                <div class="mt-4">
+                  <h2 class="arabic-text text-2xl sm:text-3xl font-bold text-slate-900 leading-snug">${u.titleAr}</h2>
+                  <p class="font-extrabold text-purple-900 text-base sm:text-lg mt-0.5">${u.titleFr}</p>
+                  <p class="arabic-text text-base text-slate-600 font-semibold mt-1">${u.desc}</p>
+                </div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderUnit1() {
+      const grp = LETTER_GROUPS.find(g => g.id === State.u1.groupId) || LETTER_GROUPS[0];
+      const lObj = LETTERS_DATA[State.u1.char] || LETTERS_DATA['ب'];
+      const exWord = VOCABULARY.find(w => w.id === lObj.wordId) || VOCABULARY[0];
+
+      return `
+        <div class="space-y-5 animate-pop">
+          <div class="bg-white rounded-3xl p-5 border-2 border-pink-100 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h1 class="arabic-text text-3xl font-bold text-pink-600">مُخْتَبَرُ الْحُرُوفِ الْمُتَشَابِهَةِ</h1>
+              <p class="font-extrabold text-purple-900 text-lg">Unité 1 : Distinguer les lettres qui se ressemblent</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="App.startGame('dots')" class="px-4 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-bold text-sm shadow-xs cursor-pointer">Jeu : Où sont les points ?</button>
+              <button onclick="App.startGame('hunter')" class="px-4 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm shadow-xs cursor-pointer">Jeu : Chasseur de lettres</button>
+            </div>
+          </div>
+
+          <div class="flex gap-2 overflow-x-auto pb-2">
+            ${LETTER_GROUPS.map(g => `
+              <button onclick="App.u1SelectGroup('${g.id}')" class="shrink-0 px-4 py-2.5 rounded-2xl border-2 font-bold transition cursor-pointer ${State.u1.groupId === g.id ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-slate-700 border-purple-100 hover:border-purple-300'}">
+                <span class="arabic-text text-xl font-bold block leading-none">${g.letters.join(' — ')}</span>
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="rounded-2xl p-4 bg-gradient-to-r ${grp.color} border-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <p class="font-extrabold text-slate-900">${grp.tipFr}</p>
+              <p class="arabic-text text-xl font-bold text-slate-800">${grp.tipAr}</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="App.u1SetMode('explore')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${State.u1.mode === 'explore' ? 'bg-white text-purple-900 shadow-sm' : 'bg-white/60 text-slate-700'}">Observer</button>
+              <button onclick="App.u1SetMode('quiz')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${State.u1.mode === 'quiz' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white/75 text-purple-900'}">S’entraîner ✨</button>
+            </div>
+          </div>
+
+          ${State.u1.mode === 'explore' ? `
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              <div class="lg:col-span-4 bg-white rounded-3xl p-5 border-2 border-purple-100 shadow-xs">
+                <p class="font-extrabold text-purple-900 mb-3">Choisis une lettre :</p>
+                <div class="grid grid-cols-3 gap-3">
+                  ${grp.letters.map(ch => `
+                    <button onclick="App.u1SelectChar('${ch}')" class="py-4 rounded-2xl border-2 transition flex flex-col items-center cursor-pointer ${State.u1.char === ch ? 'bg-pink-50 border-pink-400 shadow-md scale-[1.03]' : 'bg-slate-50 border-slate-200 hover:border-purple-300'}">
+                      <span class="arabic-text text-5xl font-bold text-slate-900 leading-none">${ch}</span>
+                      <span class="text-xs font-extrabold text-purple-700 mt-1">${LETTERS_DATA[ch].nameFr}</span>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="lg:col-span-8 bg-white rounded-3xl p-6 border-2 border-purple-100 shadow-sm flex flex-col sm:flex-row items-center gap-6">
+                <div class="flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-6 border-2 border-purple-200 min-w-[200px]">
+                  <span class="arabic-text text-9xl font-bold text-purple-900 leading-tight">${lObj.char}</span>
+                  <div class="mt-2 px-3 py-1 rounded-full bg-white text-pink-600 font-extrabold text-sm shadow-xs">${lObj.dotDescFr}</div>
+                  <p class="arabic-text text-base font-bold text-slate-700 mt-1">${lObj.dotDescAr}</p>
+                </div>
+
+                <div class="flex-1 space-y-4 w-full">
+                  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Nom & Son</span>
+                      <div class="flex items-baseline gap-3">
+                        <span class="text-2xl font-black text-purple-900">${lObj.nameFr}</span>
+                        <span class="arabic-text text-2xl font-bold text-slate-600">(${lObj.nameAr})</span>
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button onclick="App.speak('${lObj.sound}')" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-sm cursor-pointer">
+                        ${ICONS.volume} Son « ${lObj.soundFr} »
+                      </button>
+                      <button onclick="App.speak('${lObj.nameAr}')" class="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold text-sm cursor-pointer">
+                        Nom
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="bg-amber-50/70 rounded-2xl p-4 border-2 border-amber-200 flex items-center gap-4">
+                    ${getIllustrationSVG(exWord.id, 86)}
+                    <div class="flex-1">
+                      <p class="arabic-text text-4xl font-bold text-slate-900 leading-snug">${exWord.ar}</p>
+                      <p class="text-lg font-extrabold text-amber-800">${exWord.fr}</p>
+                      <button onclick="App.speak('${exWord.ar}')" class="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-white font-bold text-sm shadow-xs cursor-pointer">
+                        ${ICONS.volume} Écouter le mot
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ` : `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-purple-200 shadow-sm text-center space-y-6">
+              <div>
+                <h2 class="text-xl sm:text-2xl font-black text-purple-900">Écoute et trouve la bonne lettre !</h2>
+                <p class="arabic-text text-2xl font-bold text-pink-600">اسْمَعِي وَاخْتَارِي الْحَرْفَ الصَّحِيحَ!</p>
+              </div>
+              <button onclick="App.speak('${LETTERS_DATA[State.u1.quizTarget]?.sound || ''}')" class="inline-flex items-center gap-3 px-8 py-4 rounded-3xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 text-white font-black text-xl shadow-lg hover:scale-105 transition cursor-pointer">
+                ${ICONS.volume} Réécouter le son
+              </button>
+              <div class="flex flex-wrap justify-center gap-4 pt-2">
+                ${State.u1.quizOptions.map(ch => `
+                  <button onclick="App.u1Answer('${ch}')" class="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl bg-gradient-to-b from-white to-purple-50 border-2 border-purple-200 hover:border-pink-400 hover:scale-105 shadow-md flex items-center justify-center transition cursor-pointer">
+                    <span class="arabic-text text-7xl font-bold text-slate-900">${ch}</span>
+                  </button>
+                `).join('')}
+              </div>
+              ${State.u1.feedback === 'ok' ? `<div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-100 text-emerald-800 font-extrabold">✅ Bravo ! C’était bien « ${State.u1.quizTarget} » !</div>` : ''}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderUnit2() {
+      const shortH = HARAKAT_DATA.filter(h => h.type === 'short');
+      const longH = HARAKAT_DATA.filter(h => h.type === 'long');
+      const u2 = State.u2;
+
+      return `
+        <div class="space-y-5 animate-pop">
+          <div class="bg-white rounded-3xl p-5 border-2 border-sky-100 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <h1 class="arabic-text text-3xl font-bold text-sky-600">عَالَمُ الْحَرَكَاتِ وَالْمُدُودِ</h1>
+              <p class="font-extrabold text-purple-900 text-lg">Unité 2 : Les voyelles courtes et longues</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              ${[
+                { id: 'learn', label: 'Découvrir' },
+                { id: 'listen', label: 'Écoute & Choisis' },
+                { id: 'train', label: 'Train des Voyelles 🚂' },
+                { id: 'spotError', label: 'Vrai ou Faux ?' }
+              ].map(t => `
+                <button onclick="App.u2Tab('${t.id}')" class="px-4 py-2 rounded-xl font-bold text-sm transition cursor-pointer ${u2.tab === t.id ? 'bg-sky-500 text-white shadow-sm' : 'bg-sky-50 text-sky-900 hover:bg-sky-100'}">${t.label}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          ${(u2.tab === 'learn' || u2.tab === 'listen') ? `
+            <div class="flex items-center gap-2 overflow-x-auto pb-1">
+              <span class="text-sm font-extrabold text-slate-600 shrink-0">Lettre modèle :</span>
+              ${['ب', 'م', 'س', 'ت', 'ل', 'د', 'ر', 'ك', 'ف', 'ق'].map(l => `
+                <button onclick="App.u2Anchor('${l}')" class="w-11 h-11 rounded-xl font-bold arabic-text text-2xl shrink-0 border-2 transition cursor-pointer ${u2.anchor === l ? 'bg-sky-500 text-white border-sky-500 shadow-sm' : 'bg-white text-slate-800 border-sky-100 hover:border-sky-300'}">${l}</button>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          ${u2.tab === 'learn' ? `
+            <div class="space-y-6">
+              <div>
+                <h2 class="font-black text-purple-900 text-lg mb-3">1. Les 4 petites marques (الْحَرَكَاتُ الْقَصِيرَةُ)</h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  ${shortH.map(h => `
+                    <button onclick="App.speak('${u2.anchor}${h.mark}')" class="rounded-3xl p-5 border-2 ${h.bg} text-center hover:scale-[1.03] transition shadow-xs cursor-pointer">
+                      <div class="arabic-text text-8xl font-bold ${h.color} leading-tight">${u2.anchor}${h.mark}</div>
+                      <p class="arabic-text text-xl font-bold text-slate-900 mt-1">${h.nameAr}</p>
+                      <p class="font-extrabold text-sm text-slate-800">${h.nameFr}</p>
+                      <p class="text-xs font-bold text-slate-600 mt-1">${h.positionFr}</p>
+                      <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${h.pill} text-white text-xs font-bold">${ICONS.volume} Écouter</div>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+              <div>
+                <h2 class="font-black text-purple-900 text-lg mb-3">2. Les voyelles longues (الْمُدُودُ)</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  ${longH.map(h => `
+                    <button onclick="App.speak('${u2.anchor}${h.mark}')" class="rounded-3xl p-5 border-2 ${h.bg} text-center hover:scale-[1.03] transition shadow-xs cursor-pointer">
+                      <div class="arabic-text text-7xl font-bold ${h.color} leading-tight">${u2.anchor}${h.mark}</div>
+                      <p class="arabic-text text-xl font-bold text-slate-900 mt-1">${h.nameAr}</p>
+                      <p class="font-extrabold text-sm text-slate-800">${h.nameFr}</p>
+                      <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${h.pill} text-white text-xs font-bold">${ICONS.volume} Écouter</div>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${u2.tab === 'listen' ? `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-sky-200 text-center space-y-6">
+              <h2 class="text-xl sm:text-2xl font-black text-purple-900">Quelle voyelle entends-tu ?</h2>
+              <p class="arabic-text text-2xl font-bold text-sky-600">اِسْمَعِي وَاخْتَارِي الْحَرَكَةَ الصَّحِيحَةَ!</p>
+              <button onclick="App.speak('${u2.anchor}${u2.targetHaraka.mark}')" class="inline-flex items-center gap-3 px-8 py-4 rounded-3xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-black text-xl shadow-lg hover:scale-105 transition cursor-pointer">
+                ${ICONS.volume} Écouter le son
+              </button>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
+                ${shortH.map(h => `
+                  <button onclick="App.u2ChooseHaraka('${h.id}')" class="p-5 rounded-3xl border-2 ${h.bg} hover:scale-105 transition shadow-sm cursor-pointer">
+                    <div class="arabic-text text-7xl font-bold ${h.color}">${u2.anchor}${h.mark}</div>
+                    <p class="font-bold text-sm text-slate-700 mt-1">${h.nameFr.split(' ')[0]}</p>
+                  </button>
+                `).join('')}
+              </div>
+              ${u2.feedback === 'ok' ? `<div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-100 text-emerald-800 font-extrabold">✅ Bravo ! C’était ${u2.targetHaraka.nameFr} !</div>` : ''}
+            </div>
+          ` : ''}
+
+          ${u2.tab === 'train' ? `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-200 text-center space-y-6">
+              <h2 class="text-xl sm:text-2xl font-black text-purple-900">🚂 Le Train des Voyelles</h2>
+              <p class="text-slate-600 font-bold">Écoute le son et pose la bonne voyelle sur le wagon de la lettre !</p>
+              <button onclick="App.speak('${u2.trainLetter}${u2.targetHaraka.mark}')" class="inline-flex items-center gap-3 px-7 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-lg shadow-md cursor-pointer">
+                ${ICONS.volume} Écouter le wagon
+              </button>
+              <div class="max-w-sm mx-auto bg-gradient-to-b from-amber-100 to-orange-100 border-4 border-amber-400 rounded-3xl p-6">
+                <div class="arabic-text text-8xl font-bold text-slate-900">${u2.feedback === 'ok' ? u2.trainLetter + u2.targetHaraka.mark : u2.trainLetter}</div>
+                <div class="flex justify-between px-8 mt-3">
+                  <div class="w-8 h-8 rounded-full bg-slate-700 border-4 border-slate-400"></div>
+                  <div class="w-8 h-8 rounded-full bg-slate-700 border-4 border-slate-400"></div>
+                </div>
+              </div>
+              <div class="flex flex-wrap justify-center gap-4">
+                ${shortH.slice(0, 3).map(h => `
+                  <button onclick="App.u2ChooseHaraka('${h.id}')" class="px-7 py-4 rounded-2xl border-2 ${h.bg} hover:scale-105 transition shadow-sm cursor-pointer">
+                    <span class="arabic-text text-5xl font-bold ${h.color} block">${h.display}</span>
+                    <span class="font-extrabold text-sm text-slate-800">${h.nameFr}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${u2.tab === 'spotError' && u2.spotPair ? `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-purple-200 text-center space-y-6">
+              <h2 class="text-xl sm:text-2xl font-black text-purple-900">Est-ce que le son correspond à la carte ?</h2>
+              <p class="arabic-text text-2xl font-bold text-purple-600">هَلِ الصَّوْتُ يُطَابِقُ الْمَقْطَعَ؟</p>
+              <div class="max-w-xs mx-auto bg-purple-50 border-2 border-purple-300 rounded-3xl p-6">
+                <span class="arabic-text text-8xl font-bold text-purple-900">${u2.spotPair.letter}${u2.spotPair.shownH.mark}</span>
+              </div>
+              <button onclick="App.speak('${u2.spotPair.letter}${u2.spotPair.spokenH.mark}')" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-sky-500 text-white font-extrabold shadow-sm cursor-pointer">
+                ${ICONS.volume} Réécouter
+              </button>
+              <div class="flex flex-wrap justify-center gap-4 pt-2">
+                <button onclick="App.u2SpotAnswer(true)" class="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg shadow-md cursor-pointer">✓ Oui, c’est pareil !</button>
+                <button onclick="App.u2SpotAnswer(false)" class="px-8 py-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-black text-lg shadow-md cursor-pointer">✗ Non, c’est différent !</button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function renderUnit3() {
+      const u3 = State.u3;
+      const hObj = HARAKAT_DATA.find(x => x.id === u3.harakaId) || HARAKAT_DATA[0];
+      const combined = u3.consonant + hObj.mark;
+
+      return `
+        <div class="space-y-5 animate-pop">
+          <div class="bg-white rounded-3xl p-5 border-2 border-emerald-100 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h1 class="arabic-text text-3xl font-bold text-emerald-600">مَعْمَلُ تَرْكِيبِ الْمَقَاطِعِ</h1>
+              <p class="font-extrabold text-purple-900 text-lg">Unité 3 : Construire et lire des syllabes</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="App.u3Tab('builder')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${u3.tab === 'builder' ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-900'}">Atelier Syllabes</button>
+              <button onclick="App.u3Tab('quiz')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${u3.tab === 'quiz' ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-900'}">Défi Écoute ✨</button>
+            </div>
+          </div>
+
+          ${u3.tab === 'builder' ? `
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              <div class="lg:col-span-7 bg-white rounded-3xl p-5 border-2 border-emerald-100 space-y-5">
+                <div>
+                  <p class="font-extrabold text-slate-700 mb-2">1. Choisis une lettre :</p>
+                  <div class="flex flex-wrap gap-2">
+                    ${SYLLABLE_CONSONANTS.map(c => `
+                      <button onclick="App.u3SetConsonant('${c}')" class="w-12 h-12 rounded-2xl arabic-text text-3xl font-bold border-2 transition cursor-pointer ${u3.consonant === c ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-slate-50 text-slate-800 border-slate-200 hover:border-emerald-300'}">${c}</button>
+                    `).join('')}
+                  </div>
+                </div>
+                <div>
+                  <p class="font-extrabold text-slate-700 mb-2">2. Ajoute une voyelle (courte ou longue) :</p>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    ${HARAKAT_DATA.filter(h => h.id !== 'sukun').map(h => `
+                      <button onclick="App.u3SetHaraka('${h.id}')" class="p-3 rounded-2xl border-2 text-center transition cursor-pointer ${u3.harakaId === h.id ? `${h.bg} ring-2 ring-emerald-400` : 'bg-slate-50 border-slate-200'}">
+                        <span class="arabic-text text-3xl font-bold ${h.color} block leading-none">${h.display}</span>
+                        <span class="text-xs font-extrabold text-slate-700">${h.nameFr}</span>
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+              <div class="lg:col-span-5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl p-6 border-2 border-emerald-200 flex flex-col items-center justify-center text-center space-y-4">
+                <span class="px-4 py-1 rounded-full bg-white text-emerald-700 font-extrabold text-sm shadow-xs">Ta syllabe magique</span>
+                <div class="arabic-text text-9xl font-bold text-emerald-800 leading-tight">${combined}</div>
+                <p class="font-bold text-slate-600">${LETTERS_DATA[u3.consonant]?.nameFr} + ${hObj.nameFr}</p>
+                <button onclick="App.speak('${combined}')" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg shadow-md cursor-pointer">
+                  ${ICONS.volume} Écouter la syllabe
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-emerald-200 text-center space-y-6">
+              <h2 class="text-xl sm:text-2xl font-black text-purple-900">Choisis la syllabe que tu entends !</h2>
+              <p class="arabic-text text-2xl font-bold text-emerald-600">اِخْتَارِي الْمَقْطَعَ الصَّحِيحَ!</p>
+              <button onclick="App.speak('${u3.quizTarget}')" class="inline-flex items-center gap-3 px-8 py-4 rounded-3xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xl shadow-lg cursor-pointer">
+                ${ICONS.volume} Réécouter
+              </button>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
+                ${u3.quizOptions.map(opt => `
+                  <button onclick="App.u3Answer('${opt}')" class="p-6 rounded-3xl bg-emerald-50 border-2 border-emerald-200 hover:border-emerald-500 hover:scale-105 transition shadow-sm cursor-pointer">
+                    <span class="arabic-text text-6xl font-bold text-slate-900">${opt}</span>
+                  </button>
+                `).join('')}
+              </div>
+              ${u3.feedback === 'ok' ? `<div class="inline-flex items-center gap-2 px-5 py-2 rounded-2xl bg-emerald-100 text-emerald-800 font-extrabold">✅ Bravo ! ${u3.quizTarget}</div>` : ''}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderUnit4() {
+      const words = VOCABULARY.filter(w => State.teacherConfig.selectedWordIds.includes(w.id));
+      const u4 = State.u4;
+
+      return `
+        <div class="space-y-5 animate-pop">
+          <div class="bg-white rounded-3xl p-5 border-2 border-amber-100 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h1 class="arabic-text text-3xl font-bold text-amber-600">مَكْتَبَةُ الْكَلِمَاتِ الْمُصَوَّرَةِ</h1>
+              <p class="font-extrabold text-purple-900 text-lg">Unité 4 : Lire et comprendre mes premiers mots</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="App.u4Tab('cards')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${u4.tab === 'cards' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-900'}">Cartes Mots</button>
+              <button onclick="App.u4Tab('quiz')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${u4.tab === 'quiz' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-900'}">Vérifier ma compréhension ✨</button>
+            </div>
+          </div>
+
+          ${u4.tab === 'cards' ? `
+            <div class="flex justify-end">
+              <button onclick="App.u4ToggleSyl()" class="px-4 py-1.5 rounded-xl bg-white border border-amber-200 text-amber-800 font-bold text-xs shadow-xs cursor-pointer">
+                ${u4.showSyllables ? 'Masquer les syllabes' : 'Afficher le découpage en syllabes'}
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${words.map(w => `
+                <div class="bg-white rounded-3xl p-5 border-2 border-amber-100 hover:border-amber-300 shadow-xs flex flex-col items-center text-center transition">
+                  ${getIllustrationSVG(w.id, 96)}
+                  <p class="arabic-text text-4xl font-bold text-slate-900 mt-3 leading-snug">${w.ar}</p>
+                  ${u4.showSyllables ? `
+                    <div class="flex flex-row-reverse gap-1.5 mt-1">
+                      ${w.syllables.map(s => `<span class="arabic-text text-base font-bold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">${s}</span>`).join('')}
+                    </div>
+                  ` : ''}
+                  <p class="font-extrabold text-purple-900 text-base mt-2">${w.fr}</p>
+                  <button onclick="App.speak('${w.ar}')" class="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-500 text-white font-bold text-sm shadow-xs cursor-pointer">
+                    ${ICONS.volume} Écouter
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          ` : (u4.quizWord ? `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-200 text-center space-y-6">
+              <h2 class="text-xl sm:text-2xl font-black text-purple-900">Trouve l’image qui correspond au mot !</h2>
+              <div class="inline-flex flex-col items-center gap-2 bg-amber-50 px-8 py-4 rounded-3xl border-2 border-amber-200">
+                <span class="arabic-text text-5xl font-bold text-slate-900">${u4.quizWord.ar}</span>
+                <button onclick="App.speak('${u4.quizWord.ar}')" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-amber-500 text-white font-bold text-sm cursor-pointer">
+                  ${ICONS.volume} Écouter
+                </button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                ${u4.quizOpts.map(o => `
+                  <button onclick="App.u4Answer('${o.id}')" class="p-5 rounded-3xl bg-white border-2 border-purple-100 hover:border-amber-400 hover:scale-105 shadow-sm flex flex-col items-center gap-2 transition cursor-pointer">
+                    ${getIllustrationSVG(o.id, 104)}
+                    <span class="font-bold text-slate-600 text-sm">${o.fr}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : '')}
+        </div>
+      `;
+    }
+
+    function renderUnit5() {
+      const u5 = State.u5;
+      const s = SENTENCES_DATA[u5.idx];
+      const completeOpts = [s.words[s.missingWordIdx], ...s.distractors].sort();
+
+      return `
+        <div class="space-y-5 animate-pop">
+          <div class="bg-white rounded-3xl p-5 border-2 border-violet-100 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h1 class="arabic-text text-3xl font-bold text-violet-600">جُمَلِي الْأُولَى</h1>
+              <p class="font-extrabold text-purple-900 text-lg">Unité 5 : Lire et construire de petites phrases</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              ${[
+                { id: 'read', label: 'Lire & Écouter' },
+                { id: 'order', label: 'Remettre en ordre' },
+                { id: 'complete', label: 'Compléter la phrase' }
+              ].map(t => `
+                <button onclick="App.u5Activity('${t.id}')" class="px-4 py-2 rounded-xl font-bold text-sm cursor-pointer ${u5.activity === t.id ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-900'}">${t.label}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-violet-200 shadow-sm space-y-6">
+            <div class="flex items-center justify-between">
+              <button onclick="App.u5Change(-1)" class="px-4 py-2 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-800 font-black cursor-pointer">◀</button>
+              <span class="font-extrabold text-slate-500">Phrase ${u5.idx + 1} / ${SENTENCES_DATA.length}</span>
+              <button onclick="App.u5Change(1)" class="px-4 py-2 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-800 font-black cursor-pointer">▶</button>
+            </div>
+
+            <div class="flex flex-col items-center text-center space-y-4">
+              ${getIllustrationSVG(s.visualId, 120)}
+              <p class="text-lg font-extrabold text-violet-800">${s.fr}</p>
+
+              ${u5.activity === 'read' ? `
+                <div class="flex flex-row-reverse flex-wrap justify-center gap-3 bg-violet-50 px-6 py-4 rounded-3xl border-2 border-violet-200">
+                  ${s.words.map(w => `<button onclick="App.speak('${w}')" class="arabic-text text-4xl sm:text-5xl font-bold text-slate-900 hover:text-violet-600 transition px-2 cursor-pointer">${w}</button>`).join('')}
+                </div>
+                <button onclick="App.speak('${s.ar}')" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white font-black text-lg shadow-md cursor-pointer">
+                  ${ICONS.volume} Écouter toute la phrase
+                </button>
+              ` : ''}
+
+              ${u5.activity === 'order' ? `
+                <div class="w-full max-w-lg space-y-4">
+                  <div class="min-h-[76px] p-4 rounded-2xl bg-violet-50 border-2 border-dashed border-violet-300 flex flex-row-reverse flex-wrap items-center justify-center gap-3">
+                    ${u5.ordered.length === 0 ? `<span class="text-sm font-bold text-slate-400">Clique sur les mots dans le bon ordre (de droite à gauche)</span>` : u5.ordered.map(w => `<span class="arabic-text text-3xl font-bold px-4 py-1.5 rounded-xl bg-white border-2 border-violet-400 text-violet-900">${w}</span>`).join('')}
+                  </div>
+                  <div class="flex flex-wrap justify-center gap-3">
+                    ${u5.pool.map((w, i) => `<button onclick="App.u5PickOrder(${i})" class="arabic-text text-3xl font-bold px-5 py-2.5 rounded-2xl bg-white border-2 border-purple-200 hover:border-pink-400 shadow-xs cursor-pointer">${w}</button>`).join('')}
+                  </div>
+                  ${u5.status === 'ok' ? `<div class="inline-flex items-center gap-2 px-5 py-2 rounded-2xl bg-emerald-100 text-emerald-800 font-extrabold">✅ Bravo ! Phrase parfaite !</div>` : ''}
+                  ${u5.status === 'retry' ? `<button onclick="App.u5SetupOrder()" class="px-5 py-2 rounded-2xl bg-amber-100 text-amber-900 font-extrabold cursor-pointer">↻ Réessayer</button>` : ''}
+                </div>
+              ` : ''}
+
+              ${u5.activity === 'complete' ? `
+                <div class="w-full max-w-lg space-y-5">
+                  <div class="flex flex-row-reverse flex-wrap justify-center items-center gap-3 bg-violet-50 p-5 rounded-3xl border-2 border-violet-200">
+                    ${s.words.map((w, i) => i === s.missingWordIdx
+                      ? `<span class="px-5 py-1 rounded-xl border-2 border-dashed border-pink-400 bg-white arabic-text text-4xl font-bold text-pink-600">${u5.status === 'ok' ? w : '.....'}</span>`
+                      : `<span class="arabic-text text-4xl font-bold text-slate-900">${w}</span>`
+                    ).join('')}
+                  </div>
+                  <div class="flex flex-wrap justify-center gap-3">
+                    ${completeOpts.map(opt => `<button onclick="App.u5Complete('${opt}')" class="arabic-text text-3xl font-bold px-6 py-3 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-500 shadow-xs cursor-pointer">${opt}</button>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderGames() {
+      const gamesList = [
+        { id: 'hunter', titleAr: 'صَائِدُ الْحُرُوفِ', titleFr: 'Chasseur de Lettres', color: 'from-pink-100 to-rose-50 border-pink-200', badge: 'Visuel' },
+        { id: 'dots', titleAr: 'أَيْنَ النُّقَاطُ؟', titleFr: 'Où sont les points ?', color: 'from-purple-100 to-violet-50 border-purple-200', badge: 'Points' },
+        { id: 'odd', titleAr: 'الْحَرْفُ الْمُخْتَلِفُ', titleFr: 'Trouve l’intrus', color: 'from-sky-100 to-blue-50 border-sky-200', badge: 'Attention' },
+        { id: 'memory', titleAr: 'ذَاكِرَةُ الْحُرُوفِ', titleFr: 'Mémoire Lettres & Images', color: 'from-emerald-100 to-teal-50 border-emerald-200', badge: 'Mémoire' },
+        { id: 'buildWord', titleAr: 'اِبْنِ الْكَلِمَةَ', titleFr: 'Construis le Mot', color: 'from-amber-100 to-yellow-50 border-amber-200', badge: 'Lecture' },
+        { id: 'matchWord', titleAr: 'صِلِ الْكَلِمَةَ بِالصُّورَةِ', titleFr: 'Relie Mot et Image', color: 'from-indigo-100 to-blue-50 border-indigo-200', badge: 'Vocabulaire' }
+      ];
+
+      if (!State.activeGame) {
+        return `
+          <div class="space-y-5 animate-pop">
+            <div class="bg-white rounded-3xl p-5 border-2 border-fuchsia-100 shadow-xs">
+              <h1 class="arabic-text text-3xl font-bold text-fuchsia-600">مَدِينَةُ الْأَلْعَابِ التَّفَاعُلِيَّةِ</h1>
+              <p class="font-extrabold text-purple-900 text-lg">Choisis un jeu pour t’entraîner en t’amusant !</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              ${gamesList.map(g => `
+                <button onclick="App.startGame('${g.id}')" class="text-left rounded-3xl p-5 bg-gradient-to-br ${g.color} border-2 hover:shadow-md hover:-translate-y-1 transition cursor-pointer">
+                  <span class="inline-block px-3 py-1 rounded-full bg-white text-purple-800 font-extrabold text-xs mb-3 shadow-xs">${g.badge}</span>
+                  <h2 class="arabic-text text-2xl font-bold text-slate-900">${g.titleAr}</h2>
+                  <p class="font-extrabold text-purple-900 text-lg">${g.titleFr}</p>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      let content = '';
+      if (State.activeGame === 'hunter') {
+        const g = State.gHunter;
+        content = `
+          <div class="bg-white rounded-3xl p-6 border-2 border-pink-200 text-center space-y-5">
+            <h2 class="text-2xl font-black text-purple-900">Trouve les 3 bulles avec la lettre :</h2>
+            <div class="inline-flex items-center gap-4 bg-pink-50 px-6 py-3 rounded-3xl border-2 border-pink-300">
+              <span class="arabic-text text-6xl font-bold text-pink-600">${g.target}</span>
+              <button onclick="App.speak('${LETTERS_DATA[g.target]?.sound || g.target}')" class="p-3 rounded-2xl bg-pink-500 text-white cursor-pointer">${ICONS.volume}</button>
+            </div>
+            <p class="font-bold text-slate-500">Trouvées : ${g.found} / 3</p>
+            <div class="grid grid-cols-3 gap-4 max-w-md mx-auto">
+              ${g.bubbles.map(b => `
+                <button onclick="App.tapBubble('${b.id}')" ${b.popped ? 'disabled' : ''} class="h-24 rounded-full border-2 font-bold transition flex items-center justify-center cursor-pointer ${b.popped ? 'bg-emerald-100 border-emerald-300 opacity-40 scale-90' : 'bg-gradient-to-br from-sky-50 to-purple-100 border-purple-300 hover:scale-105 shadow-md'}">
+                  <span class="arabic-text text-5xl text-slate-900">${b.popped ? '★' : b.char}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>`;
+      } else if (State.activeGame === 'dots') {
+        const info = LETTERS_DATA[State.gDots.target];
+        const choices = [
+          { label: '1 point en bas', d: 1, p: 'below' },
+          { label: '1 point en haut', d: 1, p: 'above' },
+          { label: '1 point au milieu', d: 1, p: 'inside' },
+          { label: '2 points en haut', d: 2, p: 'above' },
+          { label: '3 points en haut', d: 3, p: 'above' },
+          { label: 'Aucun point (0)', d: 0, p: 'none' }
+        ];
+        content = `
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-purple-200 text-center space-y-5">
+            <h2 class="text-2xl font-black text-purple-900">Où sont les points de la lettre « ${info.nameFr} » ?</h2>
+            <p class="arabic-text text-2xl font-bold text-purple-600">أَيْنَ اخْتَفَتِ النُّقَاطُ؟</p>
+            <div class="inline-flex flex-col items-center bg-purple-50 px-10 py-5 rounded-3xl border-2 border-purple-200">
+              <span class="arabic-text text-8xl font-bold text-purple-900">${State.gDots.solved ? info.char : info.base}</span>
+              <button onclick="App.speak('${info.sound}')" class="mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-purple-600 text-white font-bold text-sm cursor-pointer">${ICONS.volume} Écouter (${info.soundFr})</button>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-xl mx-auto">
+              ${choices.map(c => `<button onclick="App.pickDots(${c.d}, '${c.p}')" class="p-4 rounded-2xl bg-slate-50 hover:bg-purple-100 border-2 border-purple-200 font-extrabold text-purple-900 transition cursor-pointer">${c.label}</button>`).join('')}
+            </div>
+          </div>`;
+      } else if (State.activeGame === 'odd' && State.gOdd.round) {
+        content = `
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-sky-200 text-center space-y-6">
+            <h2 class="text-2xl font-black text-purple-900">Quelle lettre est différente des autres ?</h2>
+            <p class="arabic-text text-2xl font-bold text-sky-600">مَنْ هُوَ الْحَرْفُ الْمُخْتَلِفُ؟</p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-xl mx-auto">
+              ${State.gOdd.round.cards.map(c => `
+                <button onclick="App.pickOdd(${c.id})" class="h-32 rounded-3xl bg-sky-50 border-2 border-sky-200 hover:border-pink-400 hover:scale-105 transition shadow-sm flex items-center justify-center cursor-pointer">
+                  <span class="arabic-text text-7xl font-bold text-slate-900">${c.char}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>`;
+      } else if (State.activeGame === 'memory') {
+        const m = State.gMem;
+        content = `
+          <div class="bg-white rounded-3xl p-6 border-2 border-emerald-200 text-center space-y-5">
+            <div class="flex items-center justify-between">
+              <div class="text-left">
+                <h2 class="text-xl sm:text-2xl font-black text-purple-900">Mémoire : Associe chaque lettre à son image !</h2>
+                <p class="arabic-text text-xl font-bold text-emerald-600">لُعْبَةُ الذَّاكِرَةِ</p>
+              </div>
+              <button onclick="App.initMemory()" class="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-sm cursor-pointer">Rejouer</button>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
+              ${m.cards.map(c => {
+                const isOpen = m.flipped.some(f => f.uid === c.uid) || m.matched.includes(c.pairKey);
+                return `
+                  <button onclick="App.flipCard('${c.uid}')" class="h-32 rounded-2xl border-2 flex items-center justify-center transition cursor-pointer ${isOpen ? 'bg-white border-emerald-400 shadow-sm' : 'bg-gradient-to-br from-purple-400 to-pink-400 border-purple-300 text-white hover:scale-[1.03]'}">
+                    ${isOpen ? (c.type === 'letter' ? `<span class="arabic-text text-6xl font-bold text-purple-900">${c.letter}</span>` : getIllustrationSVG(c.wordId, 90)) : `<span class="text-4xl">★</span>`}
+                  </button>`;
+              }).join('')}
+            </div>
+          </div>`;
+      } else if (State.activeGame === 'buildWord') {
+        const g = State.gBuild;
+        content = `
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-200 text-center space-y-5">
+            <h2 class="text-2xl font-black text-purple-900">Construis le mot avec ses syllabes !</h2>
+            <div class="flex flex-col items-center gap-2">
+              ${getIllustrationSVG(g.word.id, 110)}
+              <p class="font-extrabold text-amber-800 text-lg">${g.word.fr}</p>
+              <button onclick="App.speak('${g.word.ar}')" class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm cursor-pointer">${ICONS.volume} Écouter le mot</button>
+            </div>
+            <div class="min-h-[72px] max-w-md mx-auto p-3 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 flex flex-row-reverse justify-center items-center gap-2">
+              ${g.picked.map(s => `<span class="arabic-text text-4xl font-bold px-4 py-1 rounded-xl bg-white border-2 border-amber-400">${s}</span>`).join('')}
+            </div>
+            <div class="flex justify-center gap-3 flex-wrap">
+              ${g.pool.map((s, i) => `<button onclick="App.pickBuildSyl(${i})" class="arabic-text text-4xl font-bold px-6 py-3 rounded-2xl bg-white border-2 border-purple-200 hover:border-amber-500 shadow-xs cursor-pointer">${s}</button>`).join('')}
+            </div>
+            ${g.status === 'retry' ? `<button onclick="App.initBuildWord(State.gBuild.word)" class="px-5 py-2 rounded-xl bg-amber-100 text-amber-900 font-bold cursor-pointer">↻ Réessayer</button>` : ''}
+          </div>`;
+      } else if (State.activeGame === 'matchWord') {
+        const g = State.gMatch;
+        content = `
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-indigo-200 text-center space-y-5">
+            <h2 class="text-2xl font-black text-purple-900">Quel mot correspond à cette image ?</h2>
+            <div class="flex flex-col items-center gap-2">
+              ${getIllustrationSVG(g.target.id, 120)}
+              <p class="font-extrabold text-indigo-800">${g.target.fr}</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+              ${g.opts.map(o => `<button onclick="App.pickMatchWord('${o.id}')" class="p-5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 hover:border-indigo-500 hover:scale-105 transition cursor-pointer"><span class="arabic-text text-4xl font-bold text-slate-900">${o.ar}</span></button>`).join('')}
+            </div>
+          </div>`;
+      }
+
+      return `
+        <div class="space-y-4 animate-pop">
+          <button onclick="App.go('games')" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-purple-200 text-purple-800 font-bold text-sm hover:bg-purple-50 cursor-pointer">
+            ← Retour aux jeux
+          </button>
+          ${content}
+        </div>
+      `;
+    }
+
+    function renderDiagnostic() {
+      const questions = [
+        { kind: 'letter', id: 'ب', promptFr: 'Écoute et trouve la lettre !', audio: 'بَ', options: ['ب', 'ت', 'ث'] },
+        { kind: 'letter', id: 'ج', promptFr: 'Où est cette lettre ?', audio: 'جَ', options: ['ج', 'ح', 'خ'] },
+        { kind: 'letter', id: 'ش', promptFr: 'Trouve la lettre que tu entends :', audio: 'شَ', options: ['س', 'ش', 'ص'] },
+        { kind: 'haraka', id: 'fatha', promptFr: 'Écoute la voyelle sur la lettre :', audio: 'بَ', options: ['fatha', 'damma', 'kasra'] },
+        { kind: 'haraka', id: 'kasra', promptFr: 'Quelle est cette voyelle ?', audio: 'بِ', options: ['fatha', 'damma', 'kasra'] },
+        { kind: 'word', id: 'bab', promptFr: 'Quel mot veut dire « Porte » ?', audio: 'بَابٌ', options: ['bab', 'kitab', 'qalam'] }
+      ];
+
+      if (State.diag.done) {
+        return `
+          <div class="bg-white rounded-3xl p-8 border-2 border-purple-200 text-center max-w-xl mx-auto space-y-5 animate-pop">
+            <div class="flex justify-center">${getMascotSVG('excited', 110)}</div>
+            <h2 class="text-2xl font-black text-purple-900">Bravo ! Tu as terminé le Défi Découverte ! 🎉</h2>
+            <p class="arabic-text text-2xl font-bold text-pink-600">أَحْسَنْتِ! لَقَدْ أَنْهَيْتِ التَّحَدِّي!</p>
+            <div class="flex flex-wrap justify-center gap-3 pt-2">
+              <button onclick="App.go('unit1')" class="px-6 py-3 rounded-2xl bg-purple-600 text-white font-extrabold cursor-pointer">Commencer l’Unité 1</button>
+              <button onclick="App.go('home')" class="px-6 py-3 rounded-2xl bg-slate-100 text-slate-700 font-extrabold cursor-pointer">Accueil</button>
+            </div>
+          </div>`;
+      }
+
+      const q = questions[State.diag.step];
+      return `
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-purple-200 max-w-2xl mx-auto text-center space-y-6 animate-pop">
+          <div class="flex items-center justify-between text-sm font-extrabold text-purple-700">
+            <span>Défi Découverte ✨</span>
+            <span>Étape ${State.diag.step + 1} / ${questions.length}</span>
+          </div>
+          <div class="w-full h-3 rounded-full bg-purple-100 overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all" style="width:${((State.diag.step + 1) / questions.length) * 100}%"></div>
+          </div>
+          <h2 class="text-2xl font-black text-purple-900">${q.promptFr}</h2>
+          <button onclick="App.speak('${q.audio}')" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-sky-500 text-white font-black text-lg shadow-md cursor-pointer">${ICONS.volume} Écouter</button>
+          <div class="grid grid-cols-3 gap-4 pt-2">
+            ${q.options.map(opt => {
+              let label = opt;
+              if (q.kind === 'haraka') label = 'ب' + HARAKAT_DATA.find(x => x.id === opt).mark;
+              else if (q.kind === 'word') label = VOCABULARY.find(w => w.id === opt)?.ar;
+              return `<button onclick="App.diagAnswer('${opt}', '${q.kind}', '${q.id}')" class="py-6 rounded-3xl bg-purple-50 border-2 border-purple-200 hover:border-pink-400 hover:scale-105 transition shadow-xs cursor-pointer"><span class="arabic-text text-5xl sm:text-6xl font-bold text-slate-900">${label}</span></button>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
+    function renderReview() {
+      if (State.reviewQueue.length === 0) {
+        return `
+          <div class="bg-white rounded-3xl p-8 border-2 border-emerald-200 text-center max-w-lg mx-auto space-y-4 animate-pop">
+            <div class="flex justify-center">${getMascotSVG('excited', 96)}</div>
+            <h2 class="text-2xl font-black text-emerald-700">Tout est révisé ! Bravo ! 🌟</h2>
+            <p class="arabic-text text-2xl font-bold text-emerald-600">أَحْسَنْتِ! لَا تُوجَدُ أَخْطَاءٌ لِلْمُرَاجَعَةِ.</p>
+            <button onclick="App.go('home')" class="px-6 py-3 rounded-2xl bg-emerald-500 text-white font-extrabold cursor-pointer">Retour à l’accueil</button>
+          </div>`;
+      }
+
+      const item = State.reviewQueue[State.revIdx % State.reviewQueue.length];
+      let options = [];
+      let audioText = '';
+
+      if (item.kind === 'letter') {
+        const grp = LETTER_GROUPS.find(g => g.letters.includes(item.id)) || LETTER_GROUPS[0];
+        options = grp.letters.map(l => ({ val: l, label: l }));
+        audioText = LETTERS_DATA[item.id]?.sound || item.id;
+      } else if (item.kind === 'haraka') {
+        options = HARAKAT_DATA.slice(0, 3).map(h => ({ val: h.id, label: 'ب' + h.mark }));
+        const hObj = HARAKAT_DATA.find(h => h.id === item.id) || HARAKAT_DATA[0];
+        audioText = 'ب' + hObj.mark;
+      } else {
+        const wObj = VOCABULARY.find(w => w.id === item.id) || VOCABULARY[0];
+        const others = VOCABULARY.filter(w => w.id !== wObj.id).slice(0, 2);
+        options = [wObj, ...others].map(w => ({ val: w.id, label: w.ar }));
+        audioText = wObj.ar;
+      }
+
+      return `
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-300 max-w-xl mx-auto text-center space-y-6 animate-pop">
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100 text-amber-800 font-extrabold text-sm">🪄 Révision Magique (${State.reviewQueue.length} à consolider)</div>
+          <h2 class="text-2xl font-black text-purple-900">Écoute bien et choisis la bonne réponse !</h2>
+          <button onclick="App.speak('${audioText}')" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-amber-500 text-white font-black text-lg shadow-md cursor-pointer">${ICONS.volume} Écouter</button>
+          <div class="grid grid-cols-3 gap-4">
+            ${options.map(o => `
+              <button onclick="App.reviewAnswer('${o.val}', '${item.kind}', '${item.id}')" class="py-6 rounded-3xl bg-amber-50 border-2 border-amber-200 hover:border-amber-500 transition cursor-pointer">
+                <span class="arabic-text text-5xl font-bold text-slate-900">${o.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>`;
+    }
+
+    function renderTeacher() {
+      if (!State.teacherUnlocked) {
+        return `
+          <div class="max-w-md mx-auto bg-white rounded-3xl p-7 border-2 border-slate-200 shadow-sm text-center space-y-4 animate-pop">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-slate-800 text-white flex items-center justify-center text-2xl">🔒</div>
+            <h2 class="text-2xl font-black text-slate-900">Espace Professeur (Preply)</h2>
+            <p class="text-sm font-semibold text-slate-500">Entrez le code d’accès pour consulter le suivi pédagogique.<br/><span class="text-xs text-purple-600 font-bold">(Code par défaut : 1234)</span></p>
+            <input id="teacher-pin-input" type="password" onkeydown="if(event.key==='Enter') App.unlockTeacher()" placeholder="Code PIN" class="w-full text-center text-2xl tracking-widest font-bold py-3 rounded-2xl border-2 border-slate-200 focus:border-purple-500 outline-none" />
+            ${State.pinError ? `<p class="text-sm font-bold text-rose-500">Code incorrect. Essayez 1234.</p>` : ''}
+            <button onclick="App.unlockTeacher()" class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold cursor-pointer">Ouvrir le tableau de bord</button>
+          </div>`;
+      }
+
+      const an = computeAnalytics();
+      return `
+        <div class="space-y-6 animate-pop">
+          <div class="bg-slate-900 text-white rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h1 class="text-2xl font-black">📊 Tableau de Bord Professeur (Preply)</h1>
+              <p class="text-slate-300 text-sm font-semibold mt-1">Dernière activité : <span class="text-amber-300">${State.lastActivity}</span></p>
+            </div>
+            <button onclick="App.go('${an.suggestedNext.targetView}')" class="px-5 py-2.5 rounded-2xl bg-purple-500 hover:bg-purple-600 text-white font-extrabold text-sm shadow-md cursor-pointer">
+              Lancer : ${an.suggestedNext.labelFr} →
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl p-4 border border-slate-200"><p class="text-xs font-bold text-slate-500 uppercase">Activités / Badges</p><p class="text-3xl font-black text-purple-700 mt-1">${State.completedActivities}</p></div>
+            <div class="bg-white rounded-2xl p-4 border border-slate-200"><p class="text-xs font-bold text-slate-500 uppercase">Bonnes réponses</p><p class="text-3xl font-black text-emerald-600 mt-1">${an.totalCorrect}</p></div>
+            <div class="bg-white rounded-2xl p-4 border border-slate-200"><p class="text-xs font-bold text-slate-500 uppercase">Essais à consolider</p><p class="text-3xl font-black text-amber-600 mt-1">${an.totalErrors}</p></div>
+            <div class="bg-white rounded-2xl p-4 border border-slate-200"><p class="text-xs font-bold text-slate-500 uppercase">Lettres maîtrisées</p><p class="text-3xl font-black text-sky-600 mt-1">${an.masteredLetters.length}</p></div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="bg-white rounded-3xl p-5 border border-slate-200 space-y-4">
+              <h2 class="font-black text-lg text-slate-900">📋 Bilan Pédagogique & Points à Revoir</h2>
+              <div>
+                <p class="text-xs font-bold uppercase text-slate-400 mb-1.5">Lettres confondues / à réviser</p>
+                ${an.weakLetters.length === 0 ? `<p class="text-sm font-semibold text-emerald-600">Aucune confusion enregistrée pour le moment.</p>` : `
+                  <div class="flex flex-wrap gap-2">
+                    ${an.weakLetters.map(w => `<span class="px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-sm"><span class="arabic-text text-xl">${w.id}</span> (${w.errors} err.${w.confusedWith.length ? ` — confondue avec ${w.confusedWith.join('، ')}` : ''})</span>`).join('')}
+                  </div>`}
+              </div>
+              <div>
+                <p class="text-xs font-bold uppercase text-slate-400 mb-1.5">Distinction des Harakat</p>
+                <div class="grid grid-cols-2 gap-2">
+                  ${an.harakatStats.slice(0, 4).map(h => `<div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between"><span class="font-bold text-sm text-slate-800">${h.nameFr.split(' ')[0]}</span><span class="text-xs font-extrabold text-emerald-700">${h.correct} ✓ / ${h.errors} ↻</span></div>`).join('')}
+                </div>
+              </div>
+              <div class="pt-2 border-t border-slate-100 flex flex-wrap gap-2">
+                <button onclick="App.resetCategory('letter')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer">Réinitialiser Lettres</button>
+                <button onclick="App.resetCategory('haraka')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer">Réinitialiser Harakat</button>
+                <button onclick="App.resetCategory('word')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer">Réinitialiser Mots</button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-3xl p-5 border border-slate-200 space-y-3">
+              <h2 class="font-black text-lg text-slate-900">⏱️ Plan de Séance Preply (Lancement direct)</h2>
+              ${[
+                { time: '5 min', label: 'Échauffement & Révision Magique', view: 'review', game: null },
+                { time: '8 min', label: 'Lettres similaires + Jeu des Points', view: 'games', game: 'dots' },
+                { time: '8 min', label: 'Harakat & Train des Voyelles', view: 'unit2', game: null },
+                { time: '10 min', label: 'Syllabes & Mots illustrés', view: 'unit3', game: null },
+                { time: '5 min', label: 'Phrases & Chasseur de Lettres', view: 'unit5', game: null }
+              ].map(st => `
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div class="flex items-center gap-3">
+                    <span class="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 font-black text-xs">${st.time}</span>
+                    <span class="font-bold text-sm text-slate-800">${st.label}</span>
+                  </div>
+                  <button onclick="${st.game ? `App.startGame('${st.game}')` : `App.go('${st.view}')`}" class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs cursor-pointer">Lancer</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-5 border border-slate-200 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h2 class="font-black text-lg text-slate-900">🎛️ Personnalisation de la séance</h2>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-500">Difficulté :</span>
+                ${['easy', 'medium', 'challenge'].map(d => `
+                  <button onclick="App.setDifficulty('${d}')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold cursor-pointer ${State.teacherConfig.difficulty === d ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'}">
+                    ${d === 'easy' ? 'Facile (3 choix)' : d === 'medium' ? 'Moyen (4 choix)' : 'Défi (5 choix)'}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+            <div>
+              <p class="text-xs font-bold uppercase text-slate-400 mb-2">Lettres ciblées pour les jeux :</p>
+              <div class="flex flex-wrap gap-2">
+                ${Object.keys(LETTERS_DATA).map(ch => {
+                  const active = State.teacherConfig.focusLetters.includes(ch);
+                  return `<button onclick="App.toggleFocusLetter('${ch}')" class="w-11 h-11 rounded-xl arabic-text text-2xl font-bold border-2 transition cursor-pointer ${active ? 'bg-pink-500 text-white border-pink-500' : 'bg-slate-50 text-slate-600 border-slate-200'}">${ch}</button>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderModals() {
+      let html = '';
+
+      if (State.remediation) {
+        const { kind, expected, chosen } = State.remediation;
+        const isL = kind === 'letter' && LETTERS_DATA[expected] && LETTERS_DATA[chosen];
+        const isH = kind === 'haraka';
+        const expL = isL ? LETTERS_DATA[expected] : null;
+        const chL = isL ? LETTERS_DATA[chosen] : null;
+        const expH = isH ? HARAKAT_DATA.find(h => h.id === expected) : null;
+        const chH = isH ? HARAKAT_DATA.find(h => h.id === chosen) : null;
+
+        html += `
+          <div class="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border-4 border-purple-200 animate-pop">
+              <div class="flex items-center gap-4 mb-4">
+                ${getMascotSVG('happy', 70)}
+                <div>
+                  <h3 class="text-xl font-extrabold text-purple-800">Regardons la différence ensemble !</h3>
+                  <p class="arabic-text text-xl font-bold text-pink-600">لِنَنْظُرْ إِلَى الْفَرْقِ مَعًا!</p>
+                </div>
+              </div>
+              ${isL ? `
+                <div class="grid grid-cols-2 gap-4 my-4">
+                  <div class="rounded-2xl bg-emerald-50 border-2 border-emerald-300 p-4 text-center">
+                    <span class="inline-block px-3 py-0.5 rounded-full bg-emerald-500 text-white text-xs font-bold mb-2">La bonne lettre</span>
+                    <div class="arabic-text text-7xl font-bold text-emerald-700 my-1">${expL.char}</div>
+                    <p class="font-bold text-slate-800">${expL.nameFr} (${expL.soundFr})</p>
+                    <p class="text-sm font-semibold text-emerald-700 mt-1">${expL.dotDescFr}</p>
+                    <button onclick="App.speak('${expL.sound}')" class="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white font-bold text-sm cursor-pointer">${ICONS.volume} Écouter</button>
+                  </div>
+                  <div class="rounded-2xl bg-amber-50 border-2 border-amber-300 p-4 text-center">
+                    <span class="inline-block px-3 py-0.5 rounded-full bg-amber-500 text-white text-xs font-bold mb-2">Celle choisie</span>
+                    <div class="arabic-text text-7xl font-bold text-amber-700 my-1">${chL.char}</div>
+                    <p class="font-bold text-slate-800">${chL.nameFr} (${chL.soundFr})</p>
+                    <p class="text-sm font-semibold text-amber-700 mt-1">${chL.dotDescFr}</p>
+                    <button onclick="App.speak('${chL.sound}')" class="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm cursor-pointer">${ICONS.volume} Écouter</button>
+                  </div>
+                </div>
+              ` : ''}
+              ${isH && expH ? `
+                <div class="grid grid-cols-2 gap-4 my-4">
+                  <div class="rounded-2xl bg-emerald-50 border-2 border-emerald-300 p-4 text-center">
+                    <span class="inline-block px-3 py-0.5 rounded-full bg-emerald-500 text-white text-xs font-bold mb-2">La bonne voyelle</span>
+                    <div class="arabic-text text-7xl font-bold text-emerald-700 my-1">ب${expH.mark}</div>
+                    <p class="font-bold text-slate-800">${expH.nameFr}</p>
+                    <button onclick="App.speak('ب${expH.mark}')" class="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white font-bold text-sm cursor-pointer">${ICONS.volume} Écouter</button>
+                  </div>
+                  ${chH ? `
+                    <div class="rounded-2xl bg-amber-50 border-2 border-amber-300 p-4 text-center">
+                      <span class="inline-block px-3 py-0.5 rounded-full bg-amber-500 text-white text-xs font-bold mb-2">Celle choisie</span>
+                      <div class="arabic-text text-7xl font-bold text-amber-700 my-1">ب${chH.mark}</div>
+                      <p class="font-bold text-slate-800">${chH.nameFr}</p>
+                      <button onclick="App.speak('ب${chH.mark}')" class="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm cursor-pointer">${ICONS.volume} Écouter</button>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+              <div class="mt-5 flex justify-center">
+                <button onclick="App.closeRemediation()" class="px-8 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-extrabold text-lg shadow-md cursor-pointer">J’ai compris ! On continue ✨</button>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      if (State.showBadges) {
+        html += `
+          <div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-4 border-pink-200 animate-pop">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-black text-purple-900">🏆 Mes Badges (${State.badges.length})</h3>
+                <button onclick="App.openBadges(false)" class="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 font-bold cursor-pointer">✕</button>
+              </div>
+              ${State.badges.length === 0 ? `
+                <div class="text-center py-6">
+                  <div class="flex justify-center">${getMascotSVG('happy', 84)}</div>
+                  <p class="mt-3 font-bold text-slate-600">Termine un jeu ou une unité pour gagner ton premier badge !</p>
+                  <p class="arabic-text text-lg text-purple-700">أَكْمِلِي نَشَاطًا لِتَحْصُلِي عَلَى أَوَّلِ شَارَةٍ!</p>
+                </div>
+              ` : `
+                <div class="grid grid-cols-2 gap-3">
+                  ${State.badges.map(b => `
+                    <div class="p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-pink-50 border-2 border-amber-200 text-center">
+                      <div class="text-2xl mb-1">⭐</div>
+                      <p class="font-extrabold text-sm text-purple-900">${b.titleFr}</p>
+                      <p class="arabic-text text-sm text-pink-600 font-bold">${b.titleAr}</p>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+          </div>`;
+      }
+
+      document.getElementById('modal-root').innerHTML = html;
+    }
+
+    function render() {
+      renderHeader();
+      const main = document.getElementById('app-main');
+      switch (State.view) {
+        case 'home': main.innerHTML = renderHome(); break;
+        case 'unit1': main.innerHTML = renderUnit1(); break;
+        case 'unit2': main.innerHTML = renderUnit2(); break;
+        case 'unit3': main.innerHTML = renderUnit3(); break;
+        case 'unit4': main.innerHTML = renderUnit4(); break;
+        case 'unit5': main.innerHTML = renderUnit5(); break;
+        case 'games': main.innerHTML = renderGames(); break;
+        case 'diagnostic': main.innerHTML = renderDiagnostic(); break;
+        case 'review': main.innerHTML = renderReview(); break;
+        case 'teacher': main.innerHTML = renderTeacher(); break;
+        default: main.innerHTML = renderHome();
+      }
+      renderModals();
+    }
+
+    // Boot Application
+    window.addEventListener('DOMContentLoaded', () => {
+      render();
+    });
+  </script>
+</body>
+</html>
